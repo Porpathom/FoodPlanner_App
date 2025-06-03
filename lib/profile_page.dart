@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'home_page.dart';
+import 'edit_user_data_page.dart'; // นำเข้าหน้าแก้ไขข้อมูล
 
 class ProfilePage extends StatefulWidget {
   @override
@@ -11,18 +12,12 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  
+
   Map<String, dynamic>? userData;
   bool isLoading = true;
 
- @override
-void initState() {
-  super.initState();
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    // เรียก Navigator ที่นี่
-  });
-
-
+  @override
+  void initState() {
     super.initState();
     _loadUserData();
   }
@@ -32,11 +27,12 @@ void initState() {
     setState(() {
       isLoading = true;
     });
-    
+
     try {
       User? user = _auth.currentUser;
       if (user != null) {
-        DocumentSnapshot doc = await _firestore.collection('users').doc(user.uid).get();
+        DocumentSnapshot doc =
+            await _firestore.collection('users').doc(user.uid).get();
         if (doc.exists) {
           setState(() {
             userData = doc.data() as Map<String, dynamic>;
@@ -62,72 +58,184 @@ void initState() {
     }
   }
 
+  // ฟังก์ชันการออกจากระบบ
   void _signOut(BuildContext context) async {
-  try {
-    // แสดง dialog ยืนยัน
-    bool confirm = await showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text("ยืนยันการออกจากระบบ"),
-          content: Text("คุณต้องการออกจากระบบใช่หรือไม่?"),
+    try {
+      // แสดง dialog ยืนยัน
+      bool confirm = await showDialog(
+            context: context,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: Text("ยืนยันการออกจากระบบ"),
+                content: Text("คุณต้องการออกจากระบบใช่หรือไม่?"),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    child: Text("ยกเลิก"),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: Text("ออกจากระบบ"),
+                  ),
+                ],
+              );
+            },
+          ) ??
+          false;
+
+      if (confirm) {
+        // แสดง loading
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return Center(child: CircularProgressIndicator());
+          },
+        );
+
+        await _auth.signOut();
+
+        // ปิด loading
+        Navigator.pop(context);
+
+        // ใช้ Future.microtask เพื่อให้แน่ใจว่า Navigator ถูกเรียกหลังจากที่ Widget ได้รับการ build เสร็จสิ้นแล้ว
+        Future.microtask(() {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => HomePage()),
+            (route) => false, // ล้าง stack ทั้งหมด
+          );
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('เกิดข้อผิดพลาดในการออกจากระบบ: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text("ยกเลิก"),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-              child: Text("ออกจากระบบ"),
-            ),
-          ],
-        );
-      },
-    ) ?? false;
-
-    if (confirm) {
-      // แสดง loading
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          return Center(child: CircularProgressIndicator());
-        },
-      );
-
-      await _auth.signOut();
-
-      // ปิด loading
-      Navigator.pop(context);
-
-      // ใช้ Future.microtask เพื่อให้แน่ใจว่า Navigator ถูกเรียกหลังจากที่ Widget ได้รับการ build เสร็จสิ้นแล้ว
-      Future.microtask(() {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => HomePage()),
-          (route) => false, // ล้าง stack ทั้งหมด
-        );
-      });
-    }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('เกิดข้อผิดพลาดในการออกจากระบบ: $e'),
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
         ),
-      ),
-    );
+      );
+    }
   }
-}
+
+  // ฟังก์ชันสำหรับการเปลี่ยนรหัสผ่าน
+  void _changePassword(BuildContext context) async {
+    final _emailController = TextEditingController();
+
+    try {
+      User? user = _auth.currentUser;
+      if (user != null && user.email != null) {
+        _emailController.text = user.email!;
+
+        // แสดงกล่องยืนยัน
+        bool confirm = await showDialog(
+              context: context,
+              builder: (BuildContext context) {
+                return AlertDialog(
+                  title: Text("เปลี่ยนรหัสผ่าน"),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text("ระบบจะส่งอีเมลสำหรับรีเซ็ตรหัสผ่านไปยัง:"),
+                      SizedBox(height: 12),
+                      TextField(
+                        controller: _emailController,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(),
+                          labelText: "อีเมล",
+                          prefixIcon: Icon(Icons.email),
+                        ),
+                        readOnly: true,
+                      ),
+                      SizedBox(height: 12),
+                      Text("กรุณาตรวจสอบอีเมลของท่านหลังจากยืนยัน"),
+                    ],
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: Text("ยกเลิก"),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: Text("ส่งอีเมลรีเซ็ต"),
+                    ),
+                  ],
+                );
+              },
+            ) ??
+            false;
+
+        if (confirm) {
+          // แสดง loading
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return Center(child: CircularProgressIndicator());
+            },
+          );
+
+          // ส่งอีเมลรีเซ็ตรหัสผ่าน
+          await _auth.sendPasswordResetEmail(email: _emailController.text);
+
+          // ปิด loading
+          Navigator.pop(context);
+
+          // แสดงข้อความสำเร็จ
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'ส่งอีเมลรีเซ็ตรหัสผ่านเรียบร้อยแล้ว กรุณาตรวจสอบอีเมลของท่าน'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('ไม่พบข้อมูลอีเมลผู้ใช้'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('เกิดข้อผิดพลาดในการรีเซ็ตรหัสผ่าน: $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+    }
+  }
 
   // สร้าง widget แถวข้อมูลมื้ออาหาร
   Widget _buildMealTimeRow({
@@ -229,22 +337,28 @@ void initState() {
                         CircleAvatar(
                           radius: 50,
                           backgroundColor: Colors.blue.shade100,
-                          child: Icon(Icons.person, size: 60, color: Colors.blue.shade700),
+                          child: Icon(Icons.person,
+                              size: 60, color: Colors.blue.shade700),
                         ),
                         SizedBox(height: 16),
                         Text(
                           username,
-                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue.shade800),
+                          style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade800),
                         ),
                         SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.email, color: Colors.grey[600], size: 18),
+                            Icon(Icons.email,
+                                color: Colors.grey[600], size: 18),
                             SizedBox(width: 8),
                             Text(
                               email,
-                              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                              style: TextStyle(
+                                  fontSize: 16, color: Colors.grey[600]),
                             ),
                           ],
                         ),
@@ -252,9 +366,9 @@ void initState() {
                     ),
                   ),
                 ),
-                
+
                 SizedBox(height: 20),
-                
+
                 // ส่วนข้อมูลสุขภาพ
                 Card(
                   elevation: 3,
@@ -267,7 +381,8 @@ void initState() {
                       // หัวข้อ
                       Container(
                         width: double.infinity,
-                        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        padding:
+                            EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                         decoration: BoxDecoration(
                           color: Colors.blue.shade100,
                           borderRadius: BorderRadius.only(
@@ -277,12 +392,13 @@ void initState() {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.health_and_safety, color: Colors.red.shade600),
+                            Icon(Icons.health_and_safety,
+                                color: Colors.red.shade600),
                             SizedBox(width: 8),
                             Text(
                               "ข้อมูลสุขภาพ",
                               style: TextStyle(
-                                fontSize: 16, 
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.blue.shade900,
                               ),
@@ -290,7 +406,7 @@ void initState() {
                           ],
                         ),
                       ),
-                      
+
                       // ข้อมูลโรคประจำตัว
                       _buildInfoRow(
                         label: "โรคประจำตัว",
@@ -301,9 +417,9 @@ void initState() {
                     ],
                   ),
                 ),
-                
+
                 SizedBox(height: 20),
-                
+
                 // ส่วนตารางเวลาทานอาหาร
                 Card(
                   elevation: 3,
@@ -316,7 +432,8 @@ void initState() {
                       // หัวข้อ
                       Container(
                         width: double.infinity,
-                        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        padding:
+                            EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                         decoration: BoxDecoration(
                           color: Colors.blue.shade100,
                           borderRadius: BorderRadius.only(
@@ -326,12 +443,13 @@ void initState() {
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.restaurant_menu, color: Colors.blue.shade700),
+                            Icon(Icons.restaurant_menu,
+                                color: Colors.blue.shade700),
                             SizedBox(width: 8),
                             Text(
                               "ตารางเวลาทานอาหาร",
                               style: TextStyle(
-                                fontSize: 16, 
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.blue.shade900,
                               ),
@@ -339,7 +457,7 @@ void initState() {
                           ],
                         ),
                       ),
-                      
+
                       // ข้อมูลมื้ออาหาร
                       _buildMealTimeRow(
                         mealName: "มื้อเช้า",
@@ -362,9 +480,9 @@ void initState() {
                     ],
                   ),
                 ),
-                
+
                 SizedBox(height: 20),
-                
+
                 // ส่วนปุ่มการทำงาน
                 Card(
                   elevation: 3,
@@ -377,7 +495,8 @@ void initState() {
                       // หัวข้อ
                       Container(
                         width: double.infinity,
-                        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        padding:
+                            EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                         decoration: BoxDecoration(
                           color: Colors.blue.shade100,
                           borderRadius: BorderRadius.only(
@@ -392,7 +511,7 @@ void initState() {
                             Text(
                               "การตั้งค่า",
                               style: TextStyle(
-                                fontSize: 16, 
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.blue.shade900,
                               ),
@@ -400,51 +519,51 @@ void initState() {
                           ],
                         ),
                       ),
-                      
+
                       // ปุ่มแก้ไขข้อมูล
                       ListTile(
                         leading: Icon(Icons.edit, color: Colors.blue),
                         title: Text("แก้ไขข้อมูลส่วนตัว"),
                         trailing: Icon(Icons.arrow_forward_ios, size: 16),
                         onTap: () {
-                          // TODO: เพิ่มการนำทางไปหน้าแก้ไขข้อมูลส่วนตัว
-                          print("แก้ไขข้อมูลส่วนตัว");
+                          // นำทางไปยังหน้าแก้ไขข้อมูลผู้ใช้
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => EditUserDataPage(
+                                breakfastTime: breakfastTime == 'ยังไม่มีข้อมูล'
+                                    ? ''
+                                    : breakfastTime,
+                                lunchTime: lunchTime == 'ยังไม่มีข้อมูล'
+                                    ? ''
+                                    : lunchTime,
+                                dinnerTime: dinnerTime == 'ยังไม่มีข้อมูล'
+                                    ? ''
+                                    : dinnerTime,
+                                medicalCondition:
+                                    medicalCondition == 'ยังไม่มีข้อมูล'
+                                        ? ''
+                                        : medicalCondition,
+                                onMedicalConditionUpdated: (newCondition) {
+                                  setState(() {
+                                    _loadUserData();
+                                  });
+                                },
+                              ),
+                            ),
+                          );
                         },
                       ),
-                      
-                      // ปุ่มแก้ไขตารางเวลาทานอาหาร
-                      ListTile(
-                        leading: Icon(Icons.access_time, color: Colors.green),
-                        title: Text("แก้ไขตารางเวลาทานอาหาร"),
-                        trailing: Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () {
-                          // TODO: เพิ่มการนำทางไปหน้าแก้ไขตารางเวลาทานอาหาร
-                          print("แก้ไขตารางเวลาทานอาหาร");
-                        },
-                      ),
-                      
-                      // ปุ่มแก้ไขข้อมูลสุขภาพ
-                      ListTile(
-                        leading: Icon(Icons.healing, color: Colors.red),
-                        title: Text("แก้ไขข้อมูลสุขภาพ"),
-                        trailing: Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () {
-                          // TODO: เพิ่มการนำทางไปหน้าแก้ไขข้อมูลสุขภาพ
-                          print("แก้ไขข้อมูลสุขภาพ");
-                        },
-                      ),
-                      
+
                       // ปุ่มเปลี่ยนรหัสผ่าน
                       ListTile(
-                        leading: Icon(Icons.lock_outline, color: Colors.amber.shade700),
+                        leading: Icon(Icons.lock_outline,
+                            color: Colors.amber.shade700),
                         title: Text("เปลี่ยนรหัสผ่าน"),
                         trailing: Icon(Icons.arrow_forward_ios, size: 16),
-                        onTap: () {
-                          // TODO: เพิ่มการนำทางไปหน้าเปลี่ยนรหัสผ่าน
-                          print("เปลี่ยนรหัสผ่าน");
-                        },
+                        onTap: () => _changePassword(context),
                       ),
-                      
+
                       // ปุ่มออกจากระบบ
                       ListTile(
                         leading: Icon(Icons.logout, color: Colors.red),
@@ -455,9 +574,8 @@ void initState() {
                     ],
                   ),
                 ),
-                
-                SizedBox(height: 30),
 
+                SizedBox(height: 30),
               ],
             ),
           ),

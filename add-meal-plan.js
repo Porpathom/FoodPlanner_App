@@ -10,211 +10,211 @@ admin.initializeApp({
 
 const db = admin.firestore();
 
-// ข้อมูลเมนูอาหารสำหรับผู้ป่วยเบาหวาน
-const diabetesMenus = {
+// ข้อมูลเมนูอาหารสำหรับผู้ป่วยโรคความดันโลหิตสูง
+const highBloodPressureMenus = {
   breakfast: [
     {
-      name: "โจ๊กข้าวกล้อง + ไข่ต้ม",
-      description: "อาหารเช้าที่เหมาะสำหรับผู้ป่วยเบาหวาน มีไฟเบอร์สูงจากข้าวกล้อง ช่วยควบคุมน้ำตาลในเลือด",
-      ingredients: ["ข้าวกล้อง", "ไข่ไก่", "ต้นหอม", "ขิง", "พริกไทย"],
-      nutritionalInfo: { calories: 220, protein: 15, carbs: 25, fat: 6, fiber: 4, glycemicIndex: "ต่ำ" }
+      name: "โยเกิร์ตกรีกไม่หวาน + ซีเรียลโฮลเกรน + ผลไม้ตระกูลเบอร์รี่",
+      description: "อาหารเช้าที่เหมาะสำหรับผู้ป่วยโรคหัวใจ อุดมด้วยใยอาหารและสารต้านอนุมูลอิสระที่ช่วยบำรุงหัวใจ",
+      ingredients: ["โยเกิร์ตกรีกไม่หวาน", "ซีเรียลโฮลเกรนไม่หวาน", "สตรอเบอร์รี่", "บลูเบอร์รี่", "เมล็ดแฟลกซ์"],
+      nutritionalInfo: { calories: 280, protein: 15, carbs: 40, fat: 5, fiber: 8, sodium: "ต่ำมาก", cholesterol: "ต่ำ" }
     },
     {
-      name: "ขนมปังโฮลเกรน + ไข่ขาวออมเล็ต + อะโวคาโด",
-      description: "อาหารเช้าดัชนีน้ำตาลต่ำ เน้นโปรตีนและไขมันดี ช่วยควบคุมระดับน้ำตาลในเลือด",
-      ingredients: ["ขนมปังโฮลเกรน", "ไข่ขาว", "อะโวคาโด", "ผักโขม", "พริกหวาน"],
-      nutritionalInfo: { calories: 280, protein: 18, carbs: 28, fat: 12, fiber: 7, glycemicIndex: "ต่ำ" }
+      name: "ข้าวโอ๊ตต้มนมไขมันต่ำ + ถั่วและเมล็ดพืช",
+      description: "อาหารเช้าเพื่อสุขภาพหัวใจ อุดมด้วยเบต้ากลูแคนที่ช่วยลดคอเลสเตอรอล",
+      ingredients: ["ข้าวโอ๊ตเต็มเมล็ด", "นมไขมันต่ำ", "ถั่วอัลมอนด์", "เมล็ดเจีย", "อบเชย", "แอปเปิ้ลหั่น"],
+      nutritionalInfo: { calories: 320, protein: 14, carbs: 45, fat: 9, fiber: 10, sodium: "ต่ำ", cholesterol: "ต่ำมาก" }
     },
     {
-      name: "โยเกิร์ตกรีกไม่มีน้ำตาล + เมล็ดเจีย + เบอร์รี่",
-      description: "อาหารเช้าที่เหมาะกับผู้ป่วยเบาหวาน มีโปรตีนสูง น้ำตาลต่ำ และไฟเบอร์ดี",
-      ingredients: ["โยเกิร์ตกรีกไม่มีน้ำตาล", "เมล็ดเจีย", "สตรอเบอร์รี่", "บลูเบอร์รี่", "อัลมอนด์"],
-      nutritionalInfo: { calories: 230, protein: 15, carbs: 20, fat: 10, fiber: 8, glycemicIndex: "ต่ำ" }
+      name: "สมูทตี้ผักใบเขียว + ผลไม้ + โปรตีนจากพืช",
+      description: "อาหารเช้าสำหรับผู้ป่วยโรคหัวใจ อุดมด้วยสารอาหารที่ช่วยบำรุงหลอดเลือดและหัวใจ",
+      ingredients: ["ผักคะน้า", "ผักโขม", "กล้วย", "แอปเปิ้ล", "โปรตีนถั่วลันเตา", "เมล็ดแฟลกซ์", "น้ำมะนาว"],
+      nutritionalInfo: { calories: 250, protein: 15, carbs: 35, fat: 5, fiber: 9, sodium: "ต่ำมาก", cholesterol: "ไม่มี" }
     },
     {
-      name: "สมูทตี้ผักโปรตีนสูง + เมล็ดแฟลกซ์",
-      description: "เครื่องดื่มเพื่อสุขภาพสำหรับผู้ป่วยเบาหวาน เต็มไปด้วยวิตามินและแร่ธาตุ ไม่เพิ่มน้ำตาลในเลือดเร็ว",
-      ingredients: ["ผักคะน้า", "ผักโขม", "แตงกวา", "โปรตีนถั่วลันเตา", "เมล็ดแฟลกซ์", "น้ำมะนาว"],
-      nutritionalInfo: { calories: 180, protein: 15, carbs: 18, fat: 6, fiber: 9, glycemicIndex: "ต่ำ" }
+      name: "ไข่ขาวโอเมเล็ตผัก + ขนมปังโฮลเกรน",
+      description: "อาหารเช้าโปรตีนสูงสำหรับผู้ป่วยโรคหัวใจ ไม่มีคอเลสเตอรอลจากไข่แดง",
+      ingredients: ["ไข่ขาว", "ผักโขม", "มะเขือเทศ", "หอมใหญ่", "พริกหวาน", "ขนมปังโฮลเกรนไม่เค็ม"],
+      nutritionalInfo: { calories: 290, protein: 25, carbs: 30, fat: 4, fiber: 7, sodium: "ต่ำ", cholesterol: "ต่ำมาก" }
     },
     {
-      name: "ไข่ต้ม + อะโวคาโด + มะเขือเทศ",
-      description: "อาหารเช้าคาร์บต่ำสำหรับผู้ป่วยเบาหวาน ช่วยควบคุมระดับน้ำตาลในเลือดได้ดี",
-      ingredients: ["ไข่ไก่", "อะโวคาโด", "มะเขือเทศราชินี", "เกลือทะเล", "พริกไทย"],
-      nutritionalInfo: { calories: 210, protein: 14, carbs: 10, fat: 15, fiber: 6, glycemicIndex: "ต่ำมาก" }
+      name: "พุดดิ้งเมล็ดเจีย + นมถั่วเหลือง + ผลไม้",
+      description: "อาหารเช้าสำหรับผู้ป่วยโรคหัวใจ อุดมด้วยโอเมก้า-3 ที่ช่วยลดการอักเสบในร่างกาย",
+      ingredients: ["เมล็ดเจีย", "นมถั่วเหลืองไม่หวาน", "กล้วย", "ส้ม", "อัลมอนด์", "อบเชย"],
+      nutritionalInfo: { calories: 300, protein: 12, carbs: 35, fat: 12, fiber: 15, sodium: "ต่ำมาก", cholesterol: "ไม่มี" }
     },
     {
-      name: "ข้าวโอ๊ตไม่ขัดสี + นมถั่วเหลืองไม่หวาน",
-      description: "อาหารเช้าที่เหมาะกับผู้ป่วยเบาหวาน มีเบต้ากลูแคนช่วยควบคุมน้ำตาลในเลือด",
-      ingredients: ["ข้าวโอ๊ตไม่ขัดสี", "นมถั่วเหลืองไม่หวาน", "อบเชยผง", "เมล็ดฟักทอง", "เมล็ดทานตะวัน"],
-      nutritionalInfo: { calories: 250, protein: 12, carbs: 35, fat: 8, fiber: 7, glycemicIndex: "ปานกลาง" }
+      name: "โทสต์อะโวคาโด + มะเขือเทศย่าง",
+      description: "อาหารเช้าที่อุดมด้วยไขมันดีสำหรับผู้ป่วยโรคหัวใจ ช่วยลดคอเลสเตอรอลชนิดไม่ดี",
+      ingredients: ["ขนมปังโฮลเกรนไม่เค็ม", "อะโวคาโด", "มะเขือเทศย่าง", "น้ำมะนาว", "พริกไทยดำ", "ต้นอ่อนทานตะวัน"],
+      nutritionalInfo: { calories: 310, protein: 8, carbs: 30, fat: 18, fiber: 10, sodium: "ต่ำ", cholesterol: "ไม่มี" }
     },
     {
-      name: "แพนเค้กถั่วลันเตา + เบอร์รี่สด",
-      description: "อาหารเช้าทดแทนแป้งขัดขาวสำหรับผู้ป่วยเบาหวาน ให้โปรตีนสูงและคาร์บน้อย",
-      ingredients: ["แป้งถั่วลันเตา", "ไข่ไก่", "นมอัลมอนด์ไม่หวาน", "สตรอเบอร์รี่", "บลูเบอร์รี่"],
-      nutritionalInfo: { calories: 270, protein: 18, carbs: 25, fat: 10, fiber: 6, glycemicIndex: "ต่ำ" }
+      name: "โจ๊กข้าวกล้อง + ปลาย่าง + ผักใบเขียว",
+      description: "อาหารเช้าแบบเอเชียสำหรับผู้ป่วยโรคหัวใจ ให้โปรตีนคุณภาพดีและโอเมก้า-3",
+      ingredients: ["ข้าวกล้อง", "ปลาแซลมอน", "ผักคะน้า", "ขิง", "ต้นหอม", "งาขาว"],
+      nutritionalInfo: { calories: 340, protein: 25, carbs: 40, fat: 8, fiber: 6, sodium: "ต่ำ", cholesterol: "ต่ำ" }
     },
     {
-      name: "พุดดิ้งเมล็ดเจีย + ผลไม้ดัชนีน้ำตาลต่ำ",
-      description: "อาหารเช้าเพื่อควบคุมน้ำตาลในเลือด อุดมไปด้วยโอเมก้า-3 และไฟเบอร์",
-      ingredients: ["เมล็ดเจีย", "นมอัลมอนด์ไม่หวาน", "แอปเปิ้ลเขียว", "ผลแพร์", "อบเชย"],
-      nutritionalInfo: { calories: 220, protein: 8, carbs: 28, fat: 10, fiber: 10, glycemicIndex: "ต่ำ" }
+      name: "สลัดผลไม้ + โยเกิร์ต + ถั่วไม่เค็ม",
+      description: "อาหารเช้าเบาๆสำหรับผู้ป่วยโรคหัวใจ ให้วิตามินและแร่ธาตุที่จำเป็นต่อการทำงานของหัวใจ",
+      ingredients: ["แอปเปิ้ล", "ส้ม", "กีวี", "องุ่น", "โยเกิร์ตกรีกไม่หวาน", "ถั่ววอลนัทไม่เค็ม"],
+      nutritionalInfo: { calories: 270, protein: 12, carbs: 35, fat: 10, fiber: 8, sodium: "ต่ำมาก", cholesterol: "ต่ำ" }
     },
     {
-      name: "ขนมปังไรย์ + ไข่ดาว + ผักย่าง",
-      description: "อาหารเช้าดัชนีน้ำตาลต่ำ เหมาะสำหรับผู้ป่วยเบาหวาน ให้พลังงานยาวนาน",
-      ingredients: ["ขนมปังไรย์", "ไข่ไก่", "ผักโขม", "เห็ด", "มะเขือเทศ"],
-      nutritionalInfo: { calories: 260, protein: 16, carbs: 30, fat: 8, fiber: 6, glycemicIndex: "ต่ำ" }
+      name: "แพนเค้กข้าวโพดโฮลเกรน + น้ำเมเปิลแท้",
+      description: "อาหารเช้าสำหรับผู้ป่วยโรคหัวใจ ใช้แป้งโฮลเกรนและไม่ใช้เนย",
+      ingredients: ["แป้งข้าวโพดโฮลเกรน", "นมอัลมอนด์", "ไข่ขาว", "กล้วยบด", "น้ำเมเปิลแท้", "เบอร์รี่รวม"],
+      nutritionalInfo: { calories: 340, protein: 10, carbs: 60, fat: 6, fiber: 7, sodium: "ต่ำ", cholesterol: "ต่ำมาก" }
     },
     {
-      name: "สลัดผักใบเขียว + ไข่ต้ม + ถั่ว",
-      description: "อาหารเช้าคาร์บต่ำสำหรับผู้ป่วยเบาหวาน ช่วยรักษาระดับน้ำตาลในเลือดให้คงที่",
-      ingredients: ["ผักกาดแก้ว", "ผักโขม", "ไข่ไก่", "ถั่วอัลมอนด์", "น้ำสลัดมะนาวน้ำมันมะกอก"],
-      nutritionalInfo: { calories: 190, protein: 14, carbs: 12, fat: 12, fiber: 5, glycemicIndex: "ต่ำมาก" }
+      name: "มัฟฟินควินัวผัก + น้ำผลไม้คั้นสด",
+      description: "อาหารเช้าสำหรับผู้ป่วยโรคหัวใจ ใช้ควินัวที่อุดมด้วยโปรตีนคุณภาพดีและใยอาหาร",
+      ingredients: ["ควินัว", "แป้งโฮลวีต", "แครอท", "ซุกินี", "ไข่ขาว", "น้ำส้มคั้นสด"],
+      nutritionalInfo: { calories: 320, protein: 12, carbs: 50, fat: 6, fiber: 8, sodium: "ต่ำ", cholesterol: "ต่ำมาก" }
     },
   ],
   lunch: [
     {
-      name: "สลัดไก่ย่าง + น้ำสลัดไขมันต่ำ",
-      description: "อาหารกลางวันสำหรับผู้ป่วยเบาหวาน ให้โปรตีนสูงและคาร์บต่ำ ช่วยควบคุมน้ำตาลในเลือด",
-      ingredients: ["อกไก่", "ผักกาดแก้ว", "ผักโขม", "แตงกวา", "พริกหวาน", "มะเขือเทศ", "น้ำสลัดมะนาวน้ำมันมะกอก"],
-      nutritionalInfo: { calories: 320, protein: 35, carbs: 15, fat: 12, fiber: 6, glycemicIndex: "ต่ำ" }
+      name: "สลัดผักใบเขียว + ปลาแซลมอนย่าง + น้ำสลัดมะนาว",
+      description: "อาหารกลางวันที่เหมาะสำหรับผู้ป่วยโรคหัวใจ อุดมด้วยโอเมก้า-3 และไฟเบอร์",
+      ingredients: ["ผักคะน้า", "ผักโขม", "ผักกาดแก้ว", "ปลาแซลมอน", "มะเขือเทศ", "แตงกวา", "น้ำมันมะกอก", "น้ำมะนาว"],
+      nutritionalInfo: { calories: 380, protein: 30, carbs: 20, fat: 20, fiber: 8, sodium: "ต่ำ", cholesterol: "ต่ำ" }
     },
     {
-      name: "ข้าวกล้อง + แกงจืดเต้าหู้ + ปลานึ่งซีอิ๊ว",
-      description: "อาหารกลางวันสมดุลสำหรับผู้ป่วยเบาหวาน ข้าวกล้องปลดปล่อยน้ำตาลช้า ป้องกันน้ำตาลพุ่ง",
-      ingredients: ["ข้าวกล้อง", "เต้าหู้", "ผักกาดขาว", "ปลาแซลมอน", "ซีอิ๊วลดโซเดียม", "ขิง"],
-      nutritionalInfo: { calories: 380, protein: 30, carbs: 40, fat: 10, fiber: 7, glycemicIndex: "ปานกลาง-ต่ำ" }
+      name: "ซุปถั่วเลนทิล + ผักรวม + ขนมปังโฮลเกรน",
+      description: "อาหารกลางวันสำหรับผู้ป่วยโรคหัวใจ ให้โปรตีนจากพืชที่ช่วยลดคอเลสเตอรอล",
+      ingredients: ["ถั่วเลนทิล", "แครอท", "เซเลอรี่", "หอมใหญ่", "กระเทียม", "มะเขือเทศ", "ขนมปังโฮลเกรนไม่เค็ม"],
+      nutritionalInfo: { calories: 340, protein: 18, carbs: 50, fat: 5, fiber: 15, sodium: "ต่ำ", cholesterol: "ไม่มี" }
     },
     {
-      name: "สลัดควินัว + อกไก่ + ผักรวม",
-      description: "อาหารกลางวันที่เหมาะกับผู้ป่วยเบาหวาน ควินัวมีดัชนีน้ำตาลต่ำและให้โปรตีนสูงกว่าธัญพืชทั่วไป",
-      ingredients: ["ควินัว", "อกไก่", "ผักกาดแก้ว", "แตงกวา", "อะโวคาโด", "มะเขือเทศ", "น้ำมันมะกอก"],
-      nutritionalInfo: { calories: 350, protein: 28, carbs: 30, fat: 14, fiber: 8, glycemicIndex: "ต่ำ" }
+      name: "โบวล์ควินัว + ปลา + ผักรวม",
+      description: "อาหารกลางวันสำหรับผู้ป่วยโรคหัวใจ อุดมด้วยโปรตีนคุณภาพดีและกรดไขมันจำเป็น",
+      ingredients: ["ควินัว", "ปลาเทราต์", "บล็อกโคลี่", "พริกหวาน", "มะเขือเทศ", "น้ำมันมะกอก", "น้ำมะนาว"],
+      nutritionalInfo: { calories: 410, protein: 30, carbs: 40, fat: 14, fiber: 8, sodium: "ต่ำ", cholesterol: "ต่ำ" }
     },
     {
-      name: "แกงส้มผักรวม + ปลาทอดไม่มีแป้ง + ข้าวไรซ์เบอร์รี่",
-      description: "อาหารไทยดัดแปลงสำหรับผู้ป่วยเบาหวาน ใช้ข้าวไรซ์เบอร์รี่ซึ่งมีดัชนีน้ำตาลต่ำกว่าข้าวขาว",
-      ingredients: ["ข้าวไรซ์เบอร์รี่", "ปลาแซลมอน", "ผักบุ้ง", "ดอกแค", "น้ำมะขามเปียก", "พริกแกงส้ม"],
-      nutritionalInfo: { calories: 400, protein: 30, carbs: 35, fat: 15, fiber: 8, glycemicIndex: "ปานกลาง-ต่ำ" }
+      name: "แกงส้มชายทะเล + ผัก + ข้าวกล้อง (ไม่ใส่ผงปรุงรส)",
+      description: "อาหารไทยปรับสูตรสำหรับผู้ป่วยโรคหัวใจ ลดโซเดียมและเน้นสมุนไพรธรรมชาติ",
+      ingredients: ["ปลา", "กุ้ง", "ยอดมะพร้าว", "ฟักทอง", "ดอกแค", "พริกสด", "มะนาว", "ข้าวกล้อง"],
+      nutritionalInfo: { calories: 400, protein: 30, carbs: 45, fat: 8, fiber: 7, sodium: "ต่ำ", cholesterol: "ปานกลาง" }
     },
     {
-      name: "สปาเก็ตตี้โฮลวีต + ซอสมะเขือเทศ + ไก่บด",
-      description: "อาหารกลางวันแบบอิตาเลียนที่ปรับให้เหมาะกับผู้ป่วยเบาหวาน ใช้เส้นโฮลวีตเพื่อลดการดีดน้ำตาล",
-      ingredients: ["สปาเก็ตตี้โฮลวีต", "มะเขือเทศ", "หอมใหญ่", "ไก่บด", "กระเทียม", "ออริกาโน"],
-      nutritionalInfo: { calories: 370, protein: 28, carbs: 45, fat: 8, fiber: 8, glycemicIndex: "ปานกลาง" }
+      name: "สลัดถั่วรวม + อะโวคาโด + ธัญพืช",
+      description: "อาหารกลางวันสำหรับผู้ป่วยโรคหัวใจ อุดมด้วยโปรตีนจากพืชและไขมันดีที่ช่วยบำรุงหัวใจ",
+      ingredients: ["ถั่วแดง", "ถั่วเลนทิล", "ถั่วลูกไก่", "อะโวคาโด", "ผักกาดหอม", "ควินัว", "น้ำมันมะกอก", "น้ำมะนาว"],
+      nutritionalInfo: { calories: 420, protein: 20, carbs: 45, fat: 18, fiber: 17, sodium: "ต่ำ", cholesterol: "ไม่มี" }
     },
     {
-      name: "ข้าวกล้อง + ผัดบล็อกโคลี่ไก่สับ",
-      description: "อาหารกลางวันที่สมดุลสำหรับผู้ป่วยเบาหวาน บล็อกโคลี่ช่วยลดระดับน้ำตาลในเลือด",
-      ingredients: ["ข้าวกล้อง", "บล็อกโคลี่", "ไก่สับ", "กระเทียม", "ซอสถั่วเหลืองลดโซเดียม"],
-      nutritionalInfo: { calories: 350, protein: 25, carbs: 40, fat: 8, fiber: 7, glycemicIndex: "ปานกลาง-ต่ำ" }
+      name: "พาสต้าโฮลวีตซอสมะเขือเทศโฮมเมด + ปลา",
+      description: "อาหารอิตาเลียนเพื่อสุขภาพสำหรับผู้ป่วยโรคหัวใจ ให้ไลโคปีนจากมะเขือเทศที่ช่วยลดความเสี่ยงโรคหัวใจ",
+      ingredients: ["พาสต้าโฮลวีต", "มะเขือเทศสด", "กระเทียม", "หอมใหญ่", "ใบโหระพา", "น้ำมันมะกอก", "ปลากะพง"],
+      nutritionalInfo: { calories: 420, protein: 25, carbs: 60, fat: 10, fiber: 10, sodium: "ต่ำ", cholesterol: "ต่ำ" }
     },
     {
-      name: "ซุปเลนทิลกับผัก + ขนมปังไรย์",
-      description: "อาหารกลางวันรสอ่อนสำหรับผู้ป่วยเบาหวาน เลนทิลปลดปล่อยน้ำตาลช้า ควบคุมระดับน้ำตาลได้ดี",
-      ingredients: ["เลนทิล", "แครอท", "หอมใหญ่", "เซเลอรี่", "มะเขือเทศ", "ขนมปังไรย์"],
-      nutritionalInfo: { calories: 300, protein: 18, carbs: 45, fat: 5, fiber: 12, glycemicIndex: "ต่ำ" }
+      name: "ผัดผักรวมกับเต้าหู้ + ข้าวกล้อง (ไม่ใส่ผงปรุงรส)",
+      description: "อาหารมังสวิรัติเอเชียสำหรับผู้ป่วยโรคหัวใจ ช่วยลดคอเลสเตอรอลและให้โปรตีนจากพืช",
+      ingredients: ["เต้าหู้", "บล็อกโคลี่", "แครอท", "พริกหวาน", "ขิง", "กระเทียม", "ซีอิ๊วลดโซเดียม", "ข้าวกล้อง"],
+      nutritionalInfo: { calories: 350, protein: 20, carbs: 50, fat: 8, fiber: 9, sodium: "ต่ำ", cholesterol: "ไม่มี" }
     },
     {
-      name: "แซนด์วิชไข่+อะโวคาโด+ขนมปังโฮลวีต",
-      description: "อาหารกลางวันที่สะดวกสำหรับผู้ป่วยเบาหวาน มีไขมันดีจากอะโวคาโดช่วยชะลอการดูดซึมน้ำตาล",
-      ingredients: ["ขนมปังโฮลวีต", "ไข่ต้ม", "อะโวคาโด", "มะเขือเทศ", "ผักสลัด"],
-      nutritionalInfo: { calories: 320, protein: 15, carbs: 30, fat: 18, fiber: 9, glycemicIndex: "ต่ำ" }
+      name: "แซนด์วิชปลาทูน่า + ผักสลัด",
+      description: "อาหารกลางวันสะดวกสำหรับผู้ป่วยโรคหัวใจ ใช้ปลาทูน่าในน้ำและขนมปังโฮลเกรน",
+      ingredients: ["ขนมปังโฮลเกรนไม่เค็ม", "ปลาทูน่าในน้ำ", "โยเกิร์ตกรีกไม่หวาน", "ผักกาดหอม", "แตงกวา", "มะเขือเทศ"],
+      nutritionalInfo: { calories: 330, protein: 30, carbs: 35, fat: 8, fiber: 7, sodium: "ต่ำ", cholesterol: "ต่ำ" }
     },
     {
-      name: "สลัดอูด้ง + ปลาซาบะย่าง",
-      description: "อาหารกลางวันแบบญี่ปุ่นสำหรับผู้ป่วยเบาหวาน ปลาซาบะให้ไขมันโอเมก้า-3 ดีต่อระบบหัวใจและหลอดเลือด",
-      ingredients: ["อูด้งโฮลวีต", "ปลาซาบะ", "สาหร่ายวากาเมะ", "แตงกวา", "วาซาบิ", "ซอสถั่วเหลืองลดโซเดียม"],
-      nutritionalInfo: { calories: 390, protein: 30, carbs: 40, fat: 12, fiber: 6, glycemicIndex: "ปานกลาง" }
+      name: "ต้มยำปลา (ไม่ใส่ผงปรุงรส) + ข้าวกล้อง",
+      description: "อาหารไทยปรับสูตรสำหรับผู้ป่วยโรคหัวใจ ปรุงรสด้วยสมุนไพรที่มีคุณสมบัติต้านการอักเสบ",
+      ingredients: ["ปลากะพง", "เห็ดฟาง", "ใบมะกรูด", "ข่า", "ตะไคร้", "พริกขี้หนูสด", "น้ำมะนาว", "ข้าวกล้อง"],
+      nutritionalInfo: { calories: 370, protein: 30, carbs: 45, fat: 6, fiber: 5, sodium: "ต่ำ", cholesterol: "ต่ำ" }
     },
     {
-      name: "ผัดไทยเส้นบุก + กุ้ง + ผักเพิ่ม",
-      description: "อาหารไทยดัดแปลงสำหรับผู้ป่วยเบาหวาน ใช้เส้นบุกแทนเส้นก๋วยเตี๋ยวเพื่อลดคาร์โบไฮเดรต",
-      ingredients: ["เส้นบุก", "กุ้ง", "ไข่", "ถั่วงอก", "ผักบุ้ง", "หัวไชเท้าดอง"],
-      nutritionalInfo: { calories: 280, protein: 25, carbs: 15, fat: 10, fiber: 5, glycemicIndex: "ต่ำ" }
+      name: "ซุปมิเนสโตรเน่ + ขนมปังโฮลเกรน",
+      description: "อาหารอิตาเลียนแบบดั้งเดิมสำหรับผู้ป่วยโรคหัวใจ อุดมด้วยผักและถั่วที่ช่วยลดคอเลสเตอรอล",
+      ingredients: ["ถั่วแดง", "ถั่วลันเตา", "มะเขือเทศ", "แครอท", "เซเลอรี่", "หอมใหญ่", "น้ำมันมะกอก", "ขนมปังโฮลเกรน"],
+      nutritionalInfo: { calories: 380, protein: 15, carbs: 60, fat: 7, fiber: 15, sodium: "ต่ำ", cholesterol: "ไม่มี" }
     },
   ],
   dinner: [
     {
-      name: "ปลาย่าง + ผักนึ่ง + มันฝรั่งหวานนึ่ง",
-      description: "อาหารเย็นที่สมดุลสำหรับผู้ป่วยเบาหวาน มันฝรั่งหวานมีดัชนีน้ำตาลต่ำกว่ามันฝรั่งธรรมดา",
-      ingredients: ["ปลาแซลมอน", "บล็อกโคลี่", "แครอท", "มันฝรั่งหวาน", "มะนาว", "ผักโขม"],
-      nutritionalInfo: { calories: 350, protein: 30, carbs: 25, fat: 15, fiber: 7, glycemicIndex: "ต่ำ-ปานกลาง" }
+      name: "ปลาอบสมุนไพร + มันฝรั่งหวานอบ + ผักย่าง",
+      description: "อาหารเย็นสำหรับผู้ป่วยโรคหัวใจ อุดมด้วยโอเมก้า-3 และสารต้านอนุมูลอิสระ",
+      ingredients: ["ปลาแซลมอน", "โรสแมรี", "ไทม์", "มันฝรั่งหวาน", "บล็อกโคลี่", "แครอท", "น้ำมันมะกอก"],
+      nutritionalInfo: { calories: 390, protein: 30, carbs: 35, fat: 16, fiber: 8, sodium: "ต่ำ", cholesterol: "ต่ำ" }
     },
     {
-      name: "สลัดไข่ต้ม + ปลาทูน่า + ถั่วรวม",
-      description: "อาหารเย็นคาร์บต่ำสำหรับผู้ป่วยเบาหวาน ช่วยควบคุมระดับน้ำตาลในเลือดก่อนนอน",
-      ingredients: ["ไข่ไก่", "ปลาทูน่า", "ผักกาดแก้ว", "แตงกวา", "มะเขือเทศ", "ถั่วลิสง", "น้ำสลัดมะนาวไขมันต่ำ"],
-      nutritionalInfo: { calories: 300, protein: 28, carbs: 15, fat: 15, fiber: 6, glycemicIndex: "ต่ำ" }
+      name: "ซุปผักใบเขียว + ถั่วต่างๆ",
+      description: "อาหารเย็นเบาๆสำหรับผู้ป่วยโรคหัวใจ ให้ใยอาหารและสารต้านอนุมูลอิสระสูง",
+      ingredients: ["ผักคะน้า", "ผักโขม", "ถั่วแดง", "ถั่วลันเตา", "หอมใหญ่", "กระเทียม", "น้ำมันมะกอก"],
+      nutritionalInfo: { calories: 320, protein: 15, carbs: 45, fat: 8, fiber: 12, sodium: "ต่ำ", cholesterol: "ไม่มี" }
     },
     {
-      name: "ต้มยำเต้าหู้ + ข้าวกล้อง",
-      description: "อาหารไทยที่เหมาะกับผู้ป่วยเบาหวาน ต้มยำมีสมุนไพรช่วยลดระดับน้ำตาลในเลือด",
-      ingredients: ["เต้าหู้แข็ง", "เห็ดหูหนู", "ข่า", "ตะไคร้", "ใบมะกรูด", "พริก", "ข้าวกล้อง"],
-      nutritionalInfo: { calories: 320, protein: 20, carbs: 40, fat: 7, fiber: 8, glycemicIndex: "ปานกลาง" }
+      name: "แกงเลียงผัก + ข้าวกล้อง",
+      description: "อาหารไทยดั้งเดิมที่เหมาะสำหรับผู้ป่วยโรคหัวใจ อุดมด้วยผักพื้นบ้านและไม่ใช้กะทิ",
+      ingredients: ["ฟักทอง", "บวบ", "ข้าวโพดอ่อน", "เห็ดฟาง", "ใบแมงลัก", "พริกไทยอ่อน", "ข้าวกล้อง"],
+      nutritionalInfo: { calories: 300, protein: 10, carbs: 50, fat: 3, fiber: 10, sodium: "ต่ำ", cholesterol: "ไม่มี" }
     },
     {
-      name: "ไก่อบสมุนไพร + ผักอบ + ควินัว",
-      description: "อาหารเย็นที่สมดุลสำหรับผู้ป่วยเบาหวาน ควินัวมีดัชนีน้ำตาลต่ำและไม่ทำให้น้ำตาลในเลือดพุ่งสูง",
-      ingredients: ["อกไก่", "โรสแมรี่", "ไทม์", "พริกหวาน", "มะเขือม่วง", "ควินัว", "น้ำมันมะกอก"],
-      nutritionalInfo: { calories: 370, protein: 35, carbs: 30, fat: 12, fiber: 7, glycemicIndex: "ต่ำ" }
+      name: "อกไก่อบมะนาว + มันฝรั่งหวานอบ + ผักสลัด",
+      description: "อาหารเย็นที่สมดุลสำหรับผู้ป่วยโรคหัวใจ ใช้เนื้อสัตว์ไขมันต่ำและรสชาติจากสมุนไพร",
+      ingredients: ["อกไก่", "มะนาว", "มันฝรั่งหวาน", "น้ำมันมะกอก", "ผักกาดหอม", "มะเขือเทศ", "แตงกวา"],
+      nutritionalInfo: { calories: 390, protein: 35, carbs: 40, fat: 8, fiber: 8, sodium: "ต่ำ", cholesterol: "ต่ำ" }
     },
     {
-      name: "แกงเขียวหวานไก่ไม่ใส่น้ำตาล + ข้าวไรซ์เบอร์รี่",
-      description: "อาหารไทยดัดแปลงสำหรับผู้ป่วยเบาหวาน ปรุงรสด้วยสมุนไพรแทนน้ำตาล",
-      ingredients: ["อกไก่", "มะเขือพวง", "ใบโหระพา", "พริกแกงเขียวหวาน", "กะทิ", "ข้าวไรซ์เบอร์รี่"],
-      nutritionalInfo: { calories: 400, protein: 30, carbs: 35, fat: 18, fiber: 6, glycemicIndex: "ปานกลาง" }
+      name: "สลัดควินัว + ถั่วรวม + อะโวคาโด",
+      description: "อาหารเย็นมังสวิรัติสำหรับผู้ป่วยโรคหัวใจ ให้โปรตีนจากพืชและไขมันดี",
+      ingredients: ["ควินัว", "ถั่วแดง", "ถั่วดำ", "อะโวคาโด", "ผักกาดหอม", "มะเขือเทศ", "น้ำมันมะกอก", "น้ำมะนาว"],
+      nutritionalInfo: { calories: 380, protein: 15, carbs: 45, fat: 18, fiber: 13, sodium: "ต่ำ", cholesterol: "ไม่มี" }
     },
     {
-      name: "ซุปถั่วเขียว + ปลาย่าง + ผักสด",
-      description: "อาหารเย็นที่ย่อยง่ายสำหรับผู้ป่วยเบาหวาน ถั่วเขียวช่วยควบคุมระดับน้ำตาลในเลือด",
-      ingredients: ["ถั่วเขียว", "ปลาคอด", "ผักบุ้ง", "แตงกวา", "ผักกาดหอม", "ต้นหอม"],
-      nutritionalInfo: { calories: 320, protein: 35, carbs: 25, fat: 8, fiber: 10, glycemicIndex: "ต่ำ" }
+      name: "ปลาย่างเมดิเตอเรเนียน + ผักย่าง + ข้าวสีดำ",
+      description: "อาหารเย็นสไตล์เมดิเตอร์เรเนียนสำหรับผู้ป่วยโรคหัวใจ ตามแนวทางอาหาร DASH",
+      ingredients: ["ปลากะพง", "มะนาว", "กระเทียม", "โรสแมรี่", "พริกหวาน", "มะเขือม่วง", "น้ำมันมะกอก", "ข้าวกล้องสีดำ"],
+      nutritionalInfo: { calories: 420, protein: 30, carbs: 40, fat: 15, fiber: 7, sodium: "ต่ำ", cholesterol: "ต่ำ" }
     },
     {
-      name: "ลาบไก่ + ผักสด + ข้าวกล้อง",
-      description: "อาหารไทยอีสานดัดแปลงสำหรับผู้ป่วยเบาหวาน ใช้ข้าวกล้องแทนข้าวเหนียว เพิ่มผักให้มากขึ้น",
-      ingredients: ["อกไก่", "ผักสด", "ต้นหอม", "หอมแดง", "ข้าวคั่ว", "น้ำปลา", "พริกป่น", "ข้าวกล้อง"],
-      nutritionalInfo: { calories: 350, protein: 30, carbs: 35, fat: 10, fiber: 6, glycemicIndex: "ปานกลาง" }
+      name: "ต้มจืดเต้าหู้ผัก + ข้าวกล้อง",
+      description: "อาหารเย็นเอเชียสำหรับผู้ป่วยโรคหัวใจ รสชาติกลมกล่อมโดยไม่ใช้ผงปรุงรส",
+      ingredients: ["เต้าหู้ไข่", "ผักกาดขาว", "แครอท", "เห็ดหอม", "ขิง", "กระเทียม", "พริกไทย", "ข้าวกล้อง"],
+      nutritionalInfo: { calories: 320, protein: 20, carbs: 40, fat: 8, fiber: 7, sodium: "ต่ำ", cholesterol: "ไม่มี" }
     },
     {
-      name: "โทสต์อะโวคาโด + ไข่ดาว + ผักโขม",
-      description: "อาหารเย็นเบาๆ สำหรับผู้ป่วยเบาหวาน ทำง่ายและควบคุมน้ำตาลในเลือดได้ดี",
-      ingredients: ["ขนมปังโฮลเกรน", "อะโวคาโด", "ไข่ไก่", "ผักโขม", "มะเขือเทศราชินี"],
-      nutritionalInfo: { calories: 310, protein: 15, carbs: 25, fat: 18, fiber: 8, glycemicIndex: "ต่ำ" }
+      name: "ปลานึ่งมะนาว + ข้าวกล้อง",
+      description: "อาหารไทยเบาๆสำหรับผู้ป่วยโรคหัวใจ ไขมันต่ำและใช้สมุนไพรแทนเกลือ",
+      ingredients: ["ปลากะพง", "มะนาว", "พริกขี้หนูสด", "กระเทียม", "ใบมะกรูด", "ต้นหอม", "ผักชี", "ข้าวกล้อง"],
+      nutritionalInfo: { calories: 320, protein: 30, carbs: 35, fat: 5, fiber: 4, sodium: "ต่ำ", cholesterol: "ต่ำ" }
     },
     {
-      name: "ผัดผักรวมกับเต้าหู้ + ข้าวกล้อง",
-      description: "อาหารเย็นมังสวิรัติสำหรับผู้ป่วยเบาหวาน เน้นผักหลากหลายชนิดเพื่อควบคุมน้ำตาลในเลือด",
-      ingredients: ["เต้าหู้แข็ง", "บล็อกโคลี่", "แครอท", "ถั่วลันเตา", "เห็ดหอม", "ซอสถั่วเหลืองลดโซเดียม", "ข้าวกล้อง"],
-      nutritionalInfo: { calories: 320, protein: 18, carbs: 40, fat: 10, fiber: 10, glycemicIndex: "ปานกลาง" }
+      name: "สปาเกตตีโฮลวีต + ซอสมะเขือเทศผัก",
+      description: "อาหารอิตาเลียนสำหรับผู้ป่วยโรคหัวใจ อุดมด้วยไลโคปีนจากมะเขือเทศที่ช่วยบำรุงหัวใจ",
+      ingredients: ["สปาเกตตีโฮลวีต", "มะเขือเทศ", "หอมใหญ่", "แครอท", "เซเลอรี่", "กระเทียม", "โรสแมรี่", "ใบโหระพา"],
+      nutritionalInfo: { calories: 350, protein: 12, carbs: 65, fat: 5, fiber: 14, sodium: "ต่ำ", cholesterol: "ไม่มี" }
     },
     {
-      name: "ปลาอบเนย + บร็อคโคลี่นึ่ง + มันบด",
-      description: "อาหารเย็นแบบตะวันตกสำหรับผู้ป่วยเบาหวาน ใช้มันฝรั่งหวานบดแทนมันฝรั่งปกติ ช่วยลดการเพิ่มน้ำตาลในเลือด",
-      ingredients: ["ปลาแซลมอน", "เนยไม่เค็ม", "บร็อคโคลี่", "มันฝรั่งหวาน", "กระเทียม", "มะนาว"],
-      nutritionalInfo: { calories: 380, protein: 30, carbs: 30, fat: 15, fiber: 6, glycemicIndex: "ปานกลาง-ต่ำ" }
+      name: "พัฟไฟว์ผัก + ซุปถั่วลันเตา",
+      description: "อาหารเย็นแนวเมดิเตอร์เรเนียนสำหรับผู้ป่วยโรคหัวใจ ให้คุณค่าทางโภชนาการสูง",
+      ingredients: ["ถั่วลันเตา", "บล็อกโคลี่", "แครอท", "มันฝรั่ง", "หอมใหญ่", "กระเทียม", "น้ำมันมะกอก", "ผักกาดหอม"],
+      nutritionalInfo: { calories: 340, protein: 15, carbs: 50, fat: 8, fiber: 12, sodium: "ต่ำ", cholesterol: "ไม่มี" }
     },
   ]
 };
 
-// เพิ่มฟังก์ชันสำหรับเพิ่มเมนูอาหารสำหรับผู้ป่วยเบาหวาน
-async function addDiabetesMenus() {
+// เพิ่มฟังก์ชันสำหรับเพิ่มเมนูอาหารสำหรับผู้ป่วยโรคหัวใจ
+async function addhighBloodPressureMenus() {
   const batch = db.batch();
   let menuCount = 0;
   
   // เพิ่มเมนูอาหารเช้า
-  for (const menu of diabetesMenus.breakfast) {
+  for (const menu of highBloodPressureMenus.breakfast) {
     const menuRef = db.collection('foodMenus').doc();
     batch.set(menuRef, {
       ...menu,
       mealType: "breakfast",
       suitableFor: {
         healthy: false,
-        diabetes: true,
-        highBloodPressure: false,
+        diabetes: false,
+        highBloodPressure: true,
         heartDisease: false
       },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -224,15 +224,15 @@ async function addDiabetesMenus() {
   }
   
   // เพิ่มเมนูอาหารกลางวัน
-  for (const menu of diabetesMenus.lunch) {
+  for (const menu of highBloodPressureMenus.lunch) {
     const menuRef = db.collection('foodMenus').doc();
     batch.set(menuRef, {
       ...menu,
       mealType: "lunch",
       suitableFor: {
         healthy: false,
-        diabetes: true,
-        highBloodPressure: false,
+        diabetes: false,
+        highBloodPressure: true,
         heartDisease: false
       },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -242,15 +242,15 @@ async function addDiabetesMenus() {
   }
   
   // เพิ่มเมนูอาหารเย็น
-  for (const menu of diabetesMenus.dinner) {
+  for (const menu of highBloodPressureMenus.dinner) {
     const menuRef = db.collection('foodMenus').doc();
     batch.set(menuRef, {
       ...menu,
       mealType: "dinner",
       suitableFor: {
         healthy: false,
-        diabetes: true,
-        highBloodPressure: false,
+        diabetes: false,
+        highBloodPressure: true,
         heartDisease: false
       },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -261,13 +261,13 @@ async function addDiabetesMenus() {
   
   // ทำการบันทึกข้อมูลทั้งหมด
   await batch.commit();
-  console.log(`เพิ่มเมนูอาหารสำเร็จ จำนวน ${menuCount} เมนู`);
+  console.log(`เพิ่มเมนูอาหารสำหรับผู้ป่วยโรคหัวใจสำเร็จ จำนวน ${menuCount} เมนู`);
 }
 
 // เรียกใช้ฟังก์ชัน
-addDiabetesMenus()
+addhighBloodPressureMenus()
   .then(() => {
-    console.log('เสร็จสิ้นการนำเข้าเมนูอาหาร');
+    console.log('เสร็จสิ้นการนำเข้าเมนูอาหารสำหรับผู้ป่วยโรคหัวใจ');
     process.exit(0);
   })
   .catch(error => {

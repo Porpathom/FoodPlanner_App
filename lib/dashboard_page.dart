@@ -6,6 +6,7 @@ import 'today_page.dart';
 import 'menu_plan_page.dart';
 import 'raw_materials_page.dart';
 import 'profile_page.dart';
+import 'meal_history_report_page.dart'; // เพิ่ม import สำหรับหน้ารายงาน
 
 class DashboardPage extends StatefulWidget {
   @override
@@ -19,6 +20,7 @@ class _DashboardPageState extends State<DashboardPage> {
     TodayPage(),
     MenuPlanPage(),
     RawMaterialsPage(),
+    MealHistoryReportPage(), // เพิ่มหน้ารายงาน
     ProfilePage(),
   ];
 
@@ -86,6 +88,10 @@ class _DashboardPageState extends State<DashboardPage> {
             const BottomNavigationBarItem(
               icon: Icon(Icons.inventory),
               label: 'วัตถุดิบ',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.bar_chart),  // เปลี่ยนไอคอนเป็น bar_chart เพื่อสื่อถึงรายงาน
+              label: 'รายงาน',
             ),
             const BottomNavigationBarItem(
               icon: Icon(Icons.person),

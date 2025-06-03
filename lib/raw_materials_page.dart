@@ -19,6 +19,7 @@ class _RawMaterialsPageState extends State<RawMaterialsPage> {
   List<Map<String, dynamic>> dailyPlans = [];
   DateTime startDate = DateTime.now();
   Map<String, Map<String, List<String>>> dailyIngredientsByMeal = {};
+  Map<String, Map<String, dynamic>> mealDetails = {};
   
   // วันในสัปดาห์ภาษาไทย
   final List<String> thaiDays = [
@@ -118,48 +119,59 @@ class _RawMaterialsPageState extends State<RawMaterialsPage> {
   
   // จัดกลุ่มวัตถุดิบตามวันและมื้อ
   void _organizeIngredientsByMeal() {
-  dailyIngredientsByMeal.clear();
-  
-  for (int i = 0; i < dailyPlans.length; i++) {
-    DateTime currentDate = startDate.add(Duration(days: i));
-    String formattedDate = DateFormat('d MMM', 'th_TH').format(currentDate);
-    String dayName = thaiDays[currentDate.weekday % 7];
-    String dayKey = "$dayName ($formattedDate)";
+    dailyIngredientsByMeal.clear();
+    mealDetails.clear();
     
-    Map<String, dynamic> meals = dailyPlans[i]['meals'];
-    Map<String, List<String>> mealIngredients = {};
-    
-    // วนลูปผ่านมื้ออาหารแต่ละมื้อ
-    for (String mealType in ['breakfast', 'lunch', 'dinner']) {
-      List<String> ingredients = [];
-      String mealName = '';
+    for (int i = 0; i < dailyPlans.length; i++) {
+      DateTime currentDate = startDate.add(Duration(days: i));
+      String formattedDate = DateFormat('d MMM', 'th_TH').format(currentDate);
+      String dayName = thaiDays[currentDate.weekday % 7];
+      String dayKey = "$dayName ($formattedDate)";
       
-      if (meals.containsKey(mealType) && meals[mealType] is Map) {
-        Map<String, dynamic> meal = meals[mealType];
-        mealName = meal.containsKey('name') ? meal['name'] : '';
+      Map<String, dynamic> meals = dailyPlans[i]['meals'];
+      Map<String, List<String>> mealIngredients = {};
+      Map<String, dynamic> dayMealDetails = {};
+      
+      // วนลูปผ่านมื้ออาหารแต่ละมื้อ
+      for (String mealType in ['breakfast', 'lunch', 'dinner']) {
+        List<String> ingredients = [];
+        String mealName = '';
+        String? imageUrl;
         
-        if (meal.containsKey('ingredients') && meal['ingredients'] is List) {
-          List<dynamic> mealIngredientsList = meal['ingredients'];
-          for (var ingredient in mealIngredientsList) {
-            if (ingredient is String) {
-              ingredients.add(ingredient);
-            } else if (ingredient is Map && ingredient.containsKey('name')) {
-              ingredients.add(ingredient['name']);
+        if (meals.containsKey(mealType) && meals[mealType] is Map) {
+          Map<String, dynamic> meal = meals[mealType];
+          mealName = meal.containsKey('name') ? meal['name'] : '';
+          // เก็บ URL รูปภาพถ้ามี
+          imageUrl = meal.containsKey('imageUrl') ? meal['imageUrl'] : null;
+          
+          if (meal.containsKey('ingredients') && meal['ingredients'] is List) {
+            List<dynamic> mealIngredientsList = meal['ingredients'];
+            for (var ingredient in mealIngredientsList) {
+              if (ingredient is String) {
+                ingredients.add(ingredient);
+              } else if (ingredient is Map && ingredient.containsKey('name')) {
+                ingredients.add(ingredient['name']);
+              }
             }
           }
         }
+        
+        if (ingredients.isNotEmpty) {
+          mealIngredients[mealType] = [mealName, ...ingredients];
+          // เก็บรายละเอียดเมนูเพิ่มเติม
+          dayMealDetails[mealType] = {
+            'name': mealName,
+            'imageUrl': imageUrl ?? '',
+          };
+        }
       }
       
-      if (ingredients.isNotEmpty) {
-        mealIngredients[mealType] = [mealName, ...ingredients];
+      if (mealIngredients.isNotEmpty) {
+        dailyIngredientsByMeal[dayKey] = mealIngredients;
+        mealDetails[dayKey] = dayMealDetails;
       }
     }
-    
-    if (mealIngredients.isNotEmpty) {
-      dailyIngredientsByMeal[dayKey] = mealIngredients;
-    }
   }
-}
   
   // แสดงข้อความเมื่อไม่พบแผนอาหาร
   void _showNoMealPlanMessage() {
@@ -171,210 +183,275 @@ class _RawMaterialsPageState extends State<RawMaterialsPage> {
     );
   }
   
-  @override
-  Widget build(BuildContext context) {
-    if (isLoading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    
-    if (dailyPlans.isEmpty || dailyIngredientsByMeal.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text("วัตถุดิบที่ต้องใช้"),
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.inventory, size: 80, color: Colors.grey),
-              const SizedBox(height: 20),
-              const Text(
-                "วัตถุดิบ",
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              const Text("ไม่พบข้อมูลแผนอาหาร กรุณาสร้างแผนอาหารก่อน"),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _loadCurrentMealPlan,
-                child: const Text("โหลดข้อมูลใหม่"),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    
+@override
+Widget build(BuildContext context) {
+  if (isLoading) {
+    return const Center(child: CircularProgressIndicator());
+  }
+  
+  if (dailyPlans.isEmpty || dailyIngredientsByMeal.isEmpty) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("วัตถุดิบที่ต้องใช้"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadCurrentMealPlan,
-            tooltip: "โหลดข้อมูลใหม่",
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16.0),
+      // ลบ AppBar ออกและใช้ส่วนหัวแบบ Custom
+      body: Column(
         children: [
-          // หัวข้อและคำแนะนำ
-          Card(
-            margin: const EdgeInsets.only(bottom: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
+          // ส่วนหัวแบบ Custom
+          
+          // ส่วนเนื้อหา
+          Expanded(
+            child: Center(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.shopping_basket, color: Colors.green),
-                      const SizedBox(width: 8),
-                      Text(
-                        "รายการวัตถุดิบประจำสัปดาห์",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                  const Icon(Icons.inventory, size: 80, color: Colors.grey),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "วัตถุดิบ",
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "แผนอาหารวันที่ ${DateFormat('d MMMM', 'th_TH').format(startDate)} - ${DateFormat('d MMMM yyyy', 'th_TH').format(startDate.add(const Duration(days: 6)))}",
+                  const SizedBox(height: 20),
+                  const Text("ไม่พบข้อมูลแผนอาหาร กรุณาสร้างแผนอาหารก่อน"),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _loadCurrentMealPlan,
+                    child: const Text("โหลดข้อมูลใหม่"),
                   ),
                 ],
               ),
             ),
           ),
-          
-          // แสดงรายการวัตถุดิบตามวัน
-          for (String dayKey in dailyIngredientsByMeal.keys)
-            _buildDayCard(dayKey, dailyIngredientsByMeal[dayKey]!),
         ],
       ),
     );
   }
   
-  // สร้างการ์ดแสดงวัตถุดิบตามวัน
-  Widget _buildDayCard(String dayName, Map<String, List<String>> mealIngredients) {
-  bool isToday = dayName.contains(thaiDays[DateTime.now().weekday % 7]);
-  
-  return Card(
-    margin: const EdgeInsets.only(bottom: 16),
-    elevation: 2,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    child: ExpansionTile(
-      initiallyExpanded: isToday,
-      title: Text(
-        dayName,
-        style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 16,
-          color: isToday ? Colors.blue : null,
-        ),
-      ),
-      subtitle: Text(
-        "${mealIngredients.values.expand((i) => i).length} รายการ",
-        style: const TextStyle(fontSize: 14),
-      ),
+  return Scaffold(
+    // ลบ AppBar ออกและใช้ส่วนหัวแบบ Custom
+    body: Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: mealIngredients.keys.map((mealType) {
-              List<String> ingredients = mealIngredients[mealType]!;
-              String mealTitle = mealNames[mealType] ?? mealType;
-              IconData mealIcon = mealIcons[mealType] ?? Icons.restaurant;
-              String mealName = ingredients.isNotEmpty ? ingredients[0] : '';
-              
-              return Container(
-                margin: const EdgeInsets.only(bottom: 16.0),
-                decoration: BoxDecoration(
-                  color: _getMealColor(mealType).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _getMealColor(mealType).withOpacity(0.3)),
+        // ส่วนหัวแบบ Custom
+        Container(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                "วัตถุดิบที่ต้องใช้",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color.fromARGB(255, 0, 0, 0),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-  decoration: BoxDecoration(
-    color: _getMealColor(mealType).withOpacity(0.2),
-    borderRadius: const BorderRadius.only(
-      topLeft: Radius.circular(7),
-      topRight: Radius.circular(7),
-    ),
-  ),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
-        children: [
-          Icon(mealIcon, color: _getMealColor(mealType)),
-          const SizedBox(width: 8),
-          Text(
-            mealTitle,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: _getMealColor(mealType),
-              fontSize: 16,
-            ),
-          ),
-        ],
-      ),
-      if (mealName.isNotEmpty)
-        Padding(
-          padding: const EdgeInsets.only(left: 32.0, top: 4.0),
-          child: Text(
-            mealName,
-            style: TextStyle(
-              color: _getMealColor(mealType),
-              fontSize: 14,
-            ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.refresh, color: Color.fromARGB(255, 0, 0, 0)),
+                onPressed: _loadCurrentMealPlan,
+                tooltip: "โหลดข้อมูลใหม่",
+              ),
+            ],
           ),
         ),
-    ],
-  ),
-),
-                    
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: ingredients.sublist(1).map((ingredient) => 
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8.0),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text("• ", style: TextStyle(fontSize: 16)),
-                                Expanded(
-                                  child: Text(
-                                    ingredient,
-                                    style: const TextStyle(fontSize: 15),
-                                  ),
-                                ),
-                              ],
+        // ส่วนเนื้อหา
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(16.0),
+            children: [
+              // หัวข้อและคำแนะนำ
+              Card(
+                margin: const EdgeInsets.only(bottom: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.shopping_basket, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Text(
+                            "รายการวัตถุดิบประจำสัปดาห์",
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
                             ),
-                          )
-                        ).toList(),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      Text(
+                        "แผนอาหารวันที่ ${DateFormat('d MMMM', 'th_TH').format(startDate)} - ${DateFormat('d MMMM yyyy', 'th_TH').format(startDate.add(const Duration(days: 6)))}",
+                      ),
+                    ],
+                  ),
                 ),
-              );
-            }).toList(),
+              ),
+              
+              // แสดงรายการวัตถุดิบตามวัน
+              for (String dayKey in dailyIngredientsByMeal.keys)
+                _buildDayCard(dayKey, dailyIngredientsByMeal[dayKey]!, mealDetails[dayKey]!),
+            ],
           ),
         ),
       ],
     ),
   );
 }
+  
+  // สร้างการ์ดแสดงวัตถุดิบตามวัน
+  Widget _buildDayCard(String dayName, Map<String, List<String>> mealIngredients, Map<String, dynamic> dayMealDetails) {
+    bool isToday = dayName.contains(thaiDays[DateTime.now().weekday % 7]);
+    
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ExpansionTile(
+  initiallyExpanded: isToday,
+  tilePadding: const EdgeInsets.symmetric(horizontal: 16.0), // ปรับ padding ของ title
+  childrenPadding: EdgeInsets.zero, // เอา padding ของ children ออก
+  shape: const RoundedRectangleBorder( // กำหนด shape ที่ไม่มีเส้นขอบ
+    side: BorderSide.none,
+    borderRadius: BorderRadius.all(Radius.circular(12)),
+  ),
+        title: Text(
+          dayName,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: isToday ? Colors.blue : null,
+          ),
+        ),
+        subtitle: Text(
+          "${mealIngredients.values.expand((i) => i).length} รายการ",
+          style: const TextStyle(fontSize: 14),
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: mealIngredients.keys.map((mealType) {
+                List<String> ingredients = mealIngredients[mealType]!;
+                String mealTitle = mealNames[mealType] ?? mealType;
+                IconData mealIcon = mealIcons[mealType] ?? Icons.restaurant;
+                String mealName = ingredients.isNotEmpty ? ingredients[0] : '';
+                String? imageUrl = dayMealDetails[mealType]?['imageUrl'];
+                
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 16.0),
+                  decoration: BoxDecoration(
+                    color: _getMealColor(mealType).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _getMealColor(mealType).withOpacity(0.3)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                        decoration: BoxDecoration(
+                          color: _getMealColor(mealType).withOpacity(0.2),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(7),
+                            topRight: Radius.circular(7),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            // รูปเมนูอาหาร (ถ้ามี)
+                            if (imageUrl != null && imageUrl.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 12.0),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: Image.network(
+                                    imageUrl,
+                                    width: 60,
+                                    height: 60,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        width: 60,
+                                        height: 60,
+                                        color: Colors.grey[300],
+                                        child: const Icon(Icons.image_not_supported, color: Colors.grey),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            
+                            // ข้อมูลมื้ออาหาร
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(mealIcon, color: _getMealColor(mealType)),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        mealTitle,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: _getMealColor(mealType),
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  if (mealName.isNotEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 32.0, top: 4.0),
+                                      child: Text(
+                                        mealName,
+                                        style: TextStyle(
+                                          color: _getMealColor(mealType),
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: ingredients.sublist(1).map((ingredient) => 
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text("• ", style: TextStyle(fontSize: 16)),
+                                  Expanded(
+                                    child: Text(
+                                      ingredient,
+                                      style: const TextStyle(fontSize: 15),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          ).toList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
   
   // กำหนดสีสำหรับแต่ละมื้ออาหาร
   Color _getMealColor(String mealType) {

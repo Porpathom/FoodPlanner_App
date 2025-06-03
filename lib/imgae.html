@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Firebase Image Gallery</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #image-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .image-item {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+        .image-item img {
+            max-width: 100%;
+            max-height: 250px;
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body>
+    <h1>Image Gallery</h1>
+    <div id="image-gallery"></div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBQiZVQYZ_glyOOqqbXxk4-iODXpv5LK-g",
+            authDomain: "demoapp-ffc17.firebaseapp.com",
+            projectId: "demoapp-ffc17",
+            storageBucket: "demoapp-ffc17.appspot.com",
+            messagingSenderId: "465407421043",
+            appId: "1:465407421043:android:15d22e4ae3dc6618255806"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+
+        // Get Firestore database
+        const db = firebase.firestore();
+
+        // Function to fetch and display images
+        function fetchImages() {
+            const galleryContainer = document.getElementById('image-gallery');
+
+            db.collection('links').get().then((querySnapshot) => {
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    
+                    // Create image element
+                    const imageItem = document.createElement('div');
+                    imageItem.className = 'image-item';
+
+                    const img = document.createElement('img');
+                    img.src = data.url;
+                    img.alt = 'Gallery Image';
+
+                    // Detailed error logging
+                    img.onerror = function() {
+                        console.error('Failed to load image:', data.url);
+                        imageItem.innerHTML = `<p>Error loading image: ${data.url}</p>`;
+                    };
+
+                    img.onload = function() {
+                        console.log('Image loaded successfully:', data.url);
+                    };
+
+                    // Optional: Add a link to the original image
+                    const link = document.createElement('a');
+                    link.href = data.url;
+                    link.target = '_blank';
+                    link.appendChild(img);
+
+                    imageItem.appendChild(link);
+                    galleryContainer.appendChild(imageItem);
+                });
+            }).catch((error) => {
+                console.error("Error fetching images: ", error);
+            });
+        }
+
+        // Fetch images when page loads
+        fetchImages();
+    </script>
+</body>
+</html> 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart'; // เพิ่ม package สำหรับจัดรูปแบบเวลา
+import 'notification_service.dart';
 
 class EditUserDataPage extends StatefulWidget {
   final String breakfastTime;
@@ -29,7 +30,7 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
   late String lunchTime;
   late String dinnerTime;
   String selectedMedicalCondition = 'ไม่มีโรคประจำตัว';
-  
+
   // สำหรับตัวเลือกโรคประจำตัว
   final List<String> medicalConditions = [
     'ไม่มีโรคประจำตัว',
@@ -37,7 +38,7 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
     'โรคหัวใจ',
     'โรคความดันโลหิตสูง',
   ];
-  
+
   // Map สำหรับแปลงค่าระหว่าง medicalCondition และ suitableFor
   final Map<String, Map<String, bool>> medicalToSuitable = {
     'ไม่มีโรคประจำตัว': {
@@ -66,16 +67,81 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
     },
   };
 
+  bool isMedicalConditionSelected = false;
+  DateTime? mealPlanEndDate;
+  bool isMealPlanActive = false;
+
   @override
   void initState() {
     super.initState();
     breakfastTime = widget.breakfastTime;
     lunchTime = widget.lunchTime;
     dinnerTime = widget.dinnerTime;
-    
-    // ตั้งค่าโรคประจำตัวจากข้อมูลที่มีอยู่
+
+    // ตั้งค่าโรคประจำตัวเริ่มต้น
     if (medicalConditions.contains(widget.medicalCondition)) {
       selectedMedicalCondition = widget.medicalCondition;
+    } else {
+      selectedMedicalCondition = 'ไม่มีโรคประจำตัว';
+    }
+
+    // ตรวจสอบแผนอาหารปัจจุบัน
+    _checkCurrentMealPlan();
+    _initializeNotificationService();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await NotificationService().init();
+    });
+  }
+
+// เพิ่มเมธอดตรวจสอบแผนอาหาร
+  Future<void> _checkCurrentMealPlan() async {
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        QuerySnapshot activePlanSnapshot = await FirebaseFirestore.instance
+            .collection('mealPlans')
+            .where('userId', isEqualTo: user.uid)
+            .where('isActive', isEqualTo: true)
+            .limit(1)
+            .get();
+
+        if (activePlanSnapshot.docs.isNotEmpty) {
+          var planData =
+              activePlanSnapshot.docs[0].data() as Map<String, dynamic>;
+          Timestamp? endTimestamp = planData['endDate'] as Timestamp?;
+
+          if (endTimestamp != null) {
+            setState(() {
+              mealPlanEndDate = endTimestamp.toDate();
+              isMealPlanActive = DateTime.now().isBefore(mealPlanEndDate!);
+
+              // ตรวจสอบว่าเคยเลือกโรคประจำตัวหรือไม่
+              isMedicalConditionSelected = widget.medicalCondition.isNotEmpty &&
+                  widget.medicalCondition != 'ไม่มีโรคประจำตัว' &&
+                  isMealPlanActive;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      print("Error checking meal plan: $e");
+    }
+  }
+
+  Future<void> _initializeNotificationService() async {
+    try {
+      await NotificationService().init();
+    } catch (e) {
+      print("Error initializing notification service: $e");
+      // You can show a warning to the user if needed
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Could not initialize notifications. Some features may not work.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -91,131 +157,153 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
       } else if (timeString.contains(":")) {
         // รูปแบบ "HH:MM"
         List<String> parts = timeString.split(":");
-        return TimeOfDay(hour: int.parse(parts[0]), minute: int.parse(parts[1]));
+        return TimeOfDay(
+            hour: int.parse(parts[0]), minute: int.parse(parts[1]));
       }
     } catch (e) {
       print("Error parsing time: $e");
     }
-    
+
     // กรณีแปลงไม่สำเร็จให้ใช้เวลาปัจจุบัน
     return TimeOfDay.now();
   }
 
-  // ฟังก์ชันแสดงตัวเลือกเวลา
-  Future<void> _selectTime(BuildContext context, String currentTime, Function(String) onTimeSelected) async {
-  // แปลงค่าเวลาปัจจุบันให้เป็น TimeOfDay
-  TimeOfDay initialTime = currentTime.isNotEmpty 
-      ? _parseTimeString(currentTime) 
-      : TimeOfDay.now();
+  // เพิ่มฟังก์ชันทดสอบการแจ้งเตือนใน EditUserDataPage
 
-  final TimeOfDay? picked = await showTimePicker(
-    context: context,
-    initialTime: initialTime,
-    builder: (BuildContext context, Widget? child) {
-      return Theme(
-        data: ThemeData.light().copyWith(
-          colorScheme: ColorScheme.light(
-            primary: Colors.blue,
-            onPrimary: Colors.white,
-            onSurface: Colors.black,
-          ),
+  Future<void> _testNotification() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text('Testing Notification'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('You should receive a notification soon'),
+          ],
         ),
-        // บังคับให้ใช้รูปแบบ 12 ชั่วโมง (AM/PM)
-        child: MediaQuery(
-          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
-          child: child!,
-        ),
-      );
-    },
-  );
+      ),
+    );
 
-  if (picked != null) {
-    // แปลงเวลาให้เป็นรูปแบบ "hh:mm a" (12-hour format with AM/PM)
-    final now = DateTime.now();
-    final dt = DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
-    final formattedTime = DateFormat('hh:mm a').format(dt); // เช่น "09:30 PM"
-    
-    // อัพเดทค่าด้วย setState เพื่อให้ UI อัพเดททันที
-    setState(() {
-      onTimeSelected(formattedTime);
-    });
-  }
-}
-
-  Future<void> _saveUserData() async {
-  User? user = FirebaseAuth.instance.currentUser;
-  if (user != null) {
     try {
-      // แสดง loading indicator
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (BuildContext context) {
-          return Center(
-            child: CircularProgressIndicator(),
-          );
-        },
+      await NotificationService().showTestNotification();
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Test notification sent'),
+          backgroundColor: Colors.green,
+        ),
       );
-      
-      // แปลงจาก medicalCondition เป็น suitableFor
-      Map<String, bool> suitableFor = medicalToSuitable[selectedMedicalCondition] ?? {
-        'healthy': true,
-        'diabetes': false,
-        'heartDisease': false,
-        'highBloodPressure': false
-      };
+    } catch (e) {
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to send test notification: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
-      // บันทึกข้อมูลไปยัง Firestore
+  // ฟังก์ชันแสดงตัวเลือกเวลา
+  Future<void> _selectTime(BuildContext context, String currentTime,
+      Function(String) onTimeSelected) async {
+    // แปลงค่าเวลาปัจจุบันให้เป็น TimeOfDay
+    TimeOfDay initialTime = currentTime.isNotEmpty
+        ? _parseTimeString(currentTime)
+        : TimeOfDay.now();
+
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: initialTime,
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Colors.blue,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          // บังคับให้ใช้รูปแบบ 12 ชั่วโมง (AM/PM)
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false),
+            child: child!,
+          ),
+        );
+      },
+    );
+
+    if (picked != null) {
+      // แปลงเวลาให้เป็นรูปแบบ "hh:mm a" (12-hour format with AM/PM)
+      final now = DateTime.now();
+      final dt =
+          DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
+      final formattedTime = DateFormat('hh:mm a').format(dt); // เช่น "09:30 PM"
+
+      // อัพเดทค่าด้วย setState เพื่อให้ UI อัพเดททันที
+      setState(() {
+        onTimeSelected(formattedTime);
+      });
+    }
+  }
+
+ Future<void> _saveUserData() async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      // แปลง medical condition เป็น suitableFor
+      Map<String, bool> suitableFor =
+          medicalToSuitable[selectedMedicalCondition] ??
+              {
+                'healthy': true,
+                'diabetes': false,
+                'heartDisease': false,
+                'highBloodPressure': false
+              };
+
+      // บันทึกข้อมูลทั้งหมด
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'breakfastTime': breakfastTime,
         'lunchTime': lunchTime,
         'dinnerTime': dinnerTime,
         'suitableFor': suitableFor,
-        'medicalCondition': selectedMedicalCondition, // ยังเก็บ medicalCondition ไว้เพื่อความเข้ากันได้กับโค้ดเดิม
+        'medicalCondition': selectedMedicalCondition,
       }, SetOptions(merge: true));
 
-      // ปิด loading indicator
-      Navigator.pop(context);
-
-      // แสดงข้อความสำเร็จ
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('บันทึกข้อมูลเรียบร้อยแล้ว'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
+      // ตั้งเวลาแจ้งเตือนใหม่
+      await NotificationService().scheduleAllMealNotifications(
+        breakfastTime: breakfastTime,
+        lunchTime: lunchTime,
+        dinnerTime: dinnerTime,
       );
 
-      // ส่ง medicalCondition กลับไปยังหน้า MealPlanDisplayPage
+      // เรียก callback เพื่ออัปเดต UI
       if (widget.onMedicalConditionUpdated != null) {
         widget.onMedicalConditionUpdated!(selectedMedicalCondition);
       }
 
-      // กลับไปยังหน้า MealPlanDisplayPage หลังบันทึกข้อมูล
-      Future.delayed(Duration(milliseconds: 1500), () {
-        Navigator.pop(context);
-      });
+      Navigator.pop(context); // ปิด loading
+      Navigator.pop(context); // กลับหน้าเดิม
     } catch (e) {
-      // ปิด loading indicator
-      Navigator.pop(context);
-
-      print("Error saving user data: $e");
+      Navigator.pop(context); // ปิด loading
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง'),
+          content: Text('เกิดข้อผิดพลาด: ${e.toString()}'),
           backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
         ),
       );
     }
   }
-}
 
   // สร้าง widget สำหรับ time selector เพื่อลดโค้ดซ้ำซ้อน
   Widget _buildTimeSelector({
@@ -232,16 +320,13 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
           children: [
             Icon(icon, color: iconColor, size: 20),
             SizedBox(width: 8),
-            Text(label, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+            Text(label,
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
           ],
         ),
         SizedBox(height: 8),
         GestureDetector(
-          onTap: () => _selectTime(
-            context, 
-            time, 
-            onTimeSelected
-          ),
+          onTap: () => _selectTime(context, time, onTimeSelected),
           child: Container(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             decoration: BoxDecoration(
@@ -285,12 +370,13 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
               Center(
                 child: Column(
                   children: [
-                    Icon(Icons.edit_note, size: 56, color: Colors.blue.shade600),
+                    Icon(Icons.edit_note,
+                        size: 56, color: Colors.blue.shade600),
                     SizedBox(height: 8),
                     Text(
                       "แก้ไขข้อมูลการรับประทานอาหาร",
                       style: TextStyle(
-                        fontSize: 18, 
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: Colors.blue.shade800,
                       ),
@@ -299,7 +385,7 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                 ),
               ),
               SizedBox(height: 24),
-              
+
               // เวลาอาหาร - ส่วนนี้เป็น Card เดียวกัน
               Card(
                 elevation: 3,
@@ -327,7 +413,7 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                             Text(
                               "กำหนดเวลารับประทานอาหาร",
                               style: TextStyle(
-                                fontSize: 16, 
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.blue.shade900,
                               ),
@@ -336,43 +422,46 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                         ),
                       ),
                       SizedBox(height: 20),
-                      
+
                       // มื้อเช้า
                       _buildTimeSelector(
                         label: "มื้อเช้า",
                         time: breakfastTime,
                         icon: Icons.wb_sunny_outlined,
                         iconColor: Colors.orange,
-                        onTimeSelected: (newTime) => setState(() => breakfastTime = newTime),
+                        onTimeSelected: (newTime) =>
+                            setState(() => breakfastTime = newTime),
                       ),
                       SizedBox(height: 20),
-                      
+
                       // มื้อเที่ยง
                       _buildTimeSelector(
                         label: "มื้อเที่ยง",
                         time: lunchTime,
                         icon: Icons.wb_sunny,
                         iconColor: Colors.orange.shade700,
-                        onTimeSelected: (newTime) => setState(() => lunchTime = newTime),
+                        onTimeSelected: (newTime) =>
+                            setState(() => lunchTime = newTime),
                       ),
                       SizedBox(height: 20),
-                      
+
                       // มื้อเย็น
                       _buildTimeSelector(
                         label: "มื้อเย็น",
                         time: dinnerTime,
                         icon: Icons.nightlight_round,
                         iconColor: Colors.indigo,
-                        onTimeSelected: (newTime) => setState(() => dinnerTime = newTime),
+                        onTimeSelected: (newTime) =>
+                            setState(() => dinnerTime = newTime),
                       ),
                     ],
                   ),
                 ),
               ),
-              
+
               SizedBox(height: 20),
-              
-              // โรคประจำตัว
+
+              // ในส่วนของ Card ที่แสดงข้อมูลสุขภาพ
               Card(
                 elevation: 3,
                 shape: RoundedRectangleBorder(
@@ -383,7 +472,7 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // หัวข้อ
+                      // หัวข้อ (เดิม)
                       Container(
                         width: double.infinity,
                         padding: EdgeInsets.all(12),
@@ -394,12 +483,13 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.health_and_safety, color: Colors.red.shade600),
+                            Icon(Icons.health_and_safety,
+                                color: Colors.red.shade600),
                             SizedBox(width: 8),
                             Text(
                               "ข้อมูลสุขภาพ",
                               style: TextStyle(
-                                fontSize: 16, 
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.blue.shade900,
                               ),
@@ -408,21 +498,52 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                         ),
                       ),
                       SizedBox(height: 20),
-                      
+
                       // โรคประจำตัว
                       Text(
-                        "โรคประจำตัว", 
+                        "โรคประจำตัว",
                         style: TextStyle(
-                          fontSize: 16, 
-                          fontWeight: FontWeight.w500
-                        )
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                       SizedBox(height: 8),
+
+                      // เพิ่มข้อความแจ้งเตือนหากมีแผนอาหารที่ยังไม่สิ้นสุด
+                      if (isMedicalConditionSelected && isMealPlanActive)
+                        Padding(
+                          padding: EdgeInsets.only(bottom: 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "⚠️ ไม่สามารถแก้ไขโรคประจำตัวได้ขณะที่มีแผนอาหารที่ใช้งานอยู่",
+                                style: TextStyle(
+                                  color: Colors.orange.shade700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              if (mealPlanEndDate != null)
+                                Text(
+                                  "สามารถแก้ไขได้หลังจากวันที่ ${DateFormat('d MMMM yyyy', 'th_TH').format(mealPlanEndDate!)}",
+                                  style: TextStyle(
+                                    color: Colors.orange.shade700,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+
+                      // DropdownButton
                       Container(
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.grey.shade300),
                           borderRadius: BorderRadius.circular(10),
-                          color: Colors.grey.shade50,
+                          color:
+                              (isMedicalConditionSelected && isMealPlanActive)
+                                  ? Colors.grey.shade200
+                                  : Colors.grey.shade50,
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
@@ -436,13 +557,16 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                                 child: Text(condition),
                               );
                             }).toList(),
-                            onChanged: (String? newValue) {
-                              if (newValue != null) {
-                                setState(() {
-                                  selectedMedicalCondition = newValue;
-                                });
-                              }
-                            },
+                            onChanged:
+                                (isMedicalConditionSelected && isMealPlanActive)
+                                    ? null
+                                    : (String? newValue) {
+                                        if (newValue != null) {
+                                          setState(() {
+                                            selectedMedicalCondition = newValue;
+                                          });
+                                        }
+                                      },
                           ),
                         ),
                       ),
@@ -450,9 +574,8 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                   ),
                 ),
               ),
-              
               SizedBox(height: 30),
-              
+
               // ปุ่มบันทึก
               Center(
                 child: Container(
@@ -474,7 +597,7 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                         Icon(Icons.save, color: Colors.white),
                         SizedBox(width: 8),
                         Text(
-                          "บันทึกข้อมูล", 
+                          "บันทึกข้อมูล",
                           style: TextStyle(fontSize: 16),
                         ),
                       ],
@@ -482,7 +605,30 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                   ),
                 ),
               ),
-              
+
+              SizedBox(height: 16),
+              Center(
+                child: Container(
+                  width: 200,
+                  child: OutlinedButton.icon(
+                    onPressed: _testNotification,
+                    icon:
+                        Icon(Icons.notifications_active, color: Colors.orange),
+                    label: Text(
+                      "ทดสอบการแจ้งเตือน",
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      side: BorderSide(color: Colors.orange.shade300),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
               SizedBox(height: 20),
             ],
           ),

@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'meal_selection_page.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter/services.dart';
 
 class TodayPage extends StatefulWidget {
   @override
@@ -13,191 +15,276 @@ class TodayPage extends StatefulWidget {
 class _TodayPageState extends State<TodayPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  
+  String? healthConditionImage;
+
   bool isLoading = true;
   Map<String, dynamic>? todayMealPlan;
   String healthCondition = "healthy";
   String? currentMealPlanId;
   int? todayDayIndex;
-  
+
   @override
   void initState() {
     super.initState();
-    _loadTodayMealPlan();
+    // Initialize Thai locale before loading data
+    initializeDateFormatting('th_TH', null).then((_) {
+      _loadTodayMealPlan();
+    });
+    // โหลดรูปภาพแนะนำตามโรค
+    _loadHealthConditionImage();
   }
-  
+
+  void _loadHealthConditionImage() {
+    setState(() {
+      // แปลงเป็นตัวพิมพ์เล็กและลบช่องว่างเพื่อให้แมปได้ถูกต้อง
+      String condition = healthCondition.toLowerCase().trim();
+
+      switch (condition) {
+        case 'diabetes':
+        case 'โรคเบาหวาน':
+          healthConditionImage =
+              'assets/diabetes_tips.png'; // เปลี่ยนเป็น .png หรือนามสกุลไฟล์จริง
+          break;
+        case 'hypertension':
+        case 'highbloodpressure':
+        case 'โรคความดันโลหิตสูง':
+          healthConditionImage = 'assets/hypertension_tips.png';
+          break;
+        case 'heart disease':
+        case 'heartdisease':
+        case 'โรคหัวใจ':
+          healthConditionImage = 'assets/heart_disease_tips.png';
+          break;
+        default:
+          healthConditionImage = null;
+      }
+    });
+  }
+
   Future<void> _loadTodayMealPlan() async {
-  setState(() {
-    isLoading = true;
-  });
-  
-  try {
-    User? user = _auth.currentUser;
-    if (user != null) {
-      // ดึงแผนอาหารที่เป็นปัจจุบันของผู้ใช้
-      QuerySnapshot activePlanSnapshot = await _firestore
-          .collection('mealPlans')
-          .where('userId', isEqualTo: user.uid)
-          .where('isActive', isEqualTo: true)
-          .orderBy('createdAt', descending: true)
-          .limit(1)
-          .get();
-          
-      if (activePlanSnapshot.docs.isNotEmpty) {
-        DocumentSnapshot planDoc = activePlanSnapshot.docs[0];
-        currentMealPlanId = planDoc.id;
-        Map<String, dynamic> planData = planDoc.data() as Map<String, dynamic>;
-        
-        // บันทึกสภาวะสุขภาพ
-        healthCondition = planData['healthCondition'] ?? 'healthy';
-        
-        // ดึงข้อมูลแผนรายวัน
-        if (planData.containsKey('dailyPlans')) {
-          List<dynamic> dailyPlans = planData['dailyPlans'] as List<dynamic>;
-          
-          // หาวันที่ปัจจุบัน
-          DateTime now = DateTime.now();
-          todayDayIndex = null; // รีเซ็ตค่า
-          
-          // หาแผนของวันนี้
-          for (int i = 0; i < dailyPlans.length; i++) {
-            var dayPlan = dailyPlans[i];
-            Timestamp planDate = dayPlan['date'];
-            if (DateUtils.isSameDay(planDate.toDate(), now)) {
-              setState(() {
-                todayMealPlan = dayPlan as Map<String, dynamic>;
-                todayDayIndex = i;
-              });
-              print("พบแผนอาหารของวันนี้ ที่ index: $i"); // เพิ่ม log
-              break;
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      User? user = _auth.currentUser;
+      if (user != null) {
+        // ดึงแผนอาหารที่เป็นปัจจุบันของผู้ใช้
+        QuerySnapshot activePlanSnapshot = await _firestore
+            .collection('mealPlans')
+            .where('userId', isEqualTo: user.uid)
+            .where('isActive', isEqualTo: true)
+            .orderBy('createdAt', descending: true)
+            .limit(1)
+            .get();
+
+        if (activePlanSnapshot.docs.isNotEmpty) {
+          DocumentSnapshot planDoc = activePlanSnapshot.docs[0];
+          currentMealPlanId = planDoc.id;
+          Map<String, dynamic> planData =
+              planDoc.data() as Map<String, dynamic>;
+
+          // บันทึกสภาวะสุขภาพ
+          healthCondition = planData['healthCondition'] ?? 'healthy';
+          _loadHealthConditionImage(); // เพิ่มบรรทัดนี้
+
+          // ดึงข้อมูลแผนรายวัน
+          if (planData.containsKey('dailyPlans')) {
+            List<dynamic> dailyPlans = planData['dailyPlans'] as List<dynamic>;
+
+            // หาวันที่ปัจจุบัน
+            DateTime now = DateTime.now();
+            todayDayIndex = null; // รีเซ็ตค่า
+
+            // หาแผนของวันนี้
+            for (int i = 0; i < dailyPlans.length; i++) {
+              var dayPlan = dailyPlans[i];
+              Timestamp planDate = dayPlan['date'];
+              if (DateUtils.isSameDay(planDate.toDate(), now)) {
+                setState(() {
+                  todayMealPlan = dayPlan as Map<String, dynamic>;
+                  todayDayIndex = i;
+                });
+                print("พบแผนอาหารของวันนี้ ที่ index: $i"); // เพิ่ม log
+                break;
+              }
             }
           }
         }
       }
+    } catch (e) {
+      print("Error loading today's meal plan: $e");
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
     }
-  } catch (e) {
-    print("Error loading today's meal plan: $e");
-  } finally {
-    setState(() {
-      isLoading = false;
-    });
   }
-}
 
+  Future<void> _updateMealMenu(
+      String mealType, Map<String, dynamic> newMenu) async {
+    try {
+      if (currentMealPlanId == null || todayDayIndex == null) {
+        throw Exception('ไม่พบ ID ของแผนอาหารหรือดัชนีของวัน');
+      }
 
-Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) async {
-  try {
-    if (currentMealPlanId == null || todayDayIndex == null) {
-      throw Exception('ไม่พบ ID ของแผนอาหารหรือดัชนีของวัน');
-    }
+      print("กำลังอัปเดตเมนู $mealType ที่ index: $todayDayIndex");
 
-    print("กำลังอัปเดตเมนู $mealType ที่ index: $todayDayIndex");
+      // สร้างข้อมูลเมนูใหม่ที่รวม imageUrl และ instructions
+      Map<String, dynamic> mealData = {
+        'menuId': newMenu['id'],
+        'name': newMenu['name'],
+        'description': newMenu['description'] ?? '',
+        'nutritionalInfo': newMenu['nutritionalInfo'] ?? {},
+        'ingredients': newMenu['ingredients'] ?? [],
+        'imageUrl': newMenu['imageUrl'] ?? '', // เพิ่ม imageUrl
+        'instructions': newMenu['instructions'] ?? [], // เพิ่ม instructions
+      };
 
-    // สร้างข้อมูลเมนูใหม่
-    Map<String, dynamic> mealData = {
-      'menuId': newMenu['id'],
-      'name': newMenu['name'],
-      'description': newMenu['description'] ?? '',
-      'nutritionalInfo': newMenu['nutritionalInfo'] ?? {},
-      'ingredients': newMenu['ingredients'] ?? []
-    };
+      // อัปเดตข้อมูลในตัวแปร state ก่อน
+      setState(() {
+        todayMealPlan!['meals'][mealType] = mealData;
+      });
 
-    // อัปเดตข้อมูลในตัวแปร state ก่อน
-    setState(() {
-      todayMealPlan!['meals'][mealType] = mealData;
-    });
+      // ดึงข้อมูลแผนอาหารปัจจุบันจาก Firestore ก่อน
+      DocumentSnapshot docSnapshot =
+          await _firestore.collection('mealPlans').doc(currentMealPlanId).get();
+      if (!docSnapshot.exists) {
+        throw Exception('ไม่พบแผนอาหาร');
+      }
 
-    // ดึงข้อมูลแผนอาหารปัจจุบันจาก Firestore ก่อน
-    DocumentSnapshot docSnapshot = await _firestore.collection('mealPlans').doc(currentMealPlanId).get();
-    if (!docSnapshot.exists) {
-      throw Exception('ไม่พบแผนอาหาร');
-    }
-    
-    // แก้ไขเฉพาะส่วนที่ต้องการ
-    Map<String, dynamic> currentData = docSnapshot.data() as Map<String, dynamic>;
-    List<dynamic> updatedDailyPlans = List.from(currentData['dailyPlans']);
-    updatedDailyPlans[todayDayIndex!]['meals'][mealType] = mealData;
-    
-    // อัปเดตแผนอาหารทั้งหมด
-    await _firestore.collection('mealPlans').doc(currentMealPlanId).update({
-      'dailyPlans': updatedDailyPlans
-    });
+      // แก้ไขเฉพาะส่วนที่ต้องการ
+      Map<String, dynamic> currentData =
+          docSnapshot.data() as Map<String, dynamic>;
+      List<dynamic> updatedDailyPlans = List.from(currentData['dailyPlans']);
+      updatedDailyPlans[todayDayIndex!]['meals'][mealType] = mealData;
 
-    // แจ้งเตือนผู้ใช้
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('เปลี่ยนเมนู${_getMealTypeName(mealType)}สำเร็จ'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  } catch (e) {
-    print("Error updating meal menu: $e");
-    
-    // ตรวจสอบ mounted ก่อนใช้ context
-    if (mounted) {
+      // อัปเดตแผนอาหารทั้งหมด
+      await _firestore
+          .collection('mealPlans')
+          .doc(currentMealPlanId)
+          .update({'dailyPlans': updatedDailyPlans});
+
+      // แจ้งเตือนผู้ใช้
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('เกิดข้อผิดพลาดในการเปลี่ยนเมนู: ${e.toString()}'),
-          duration: const Duration(seconds: 3),
+          content: Text('เปลี่ยนเมนู${_getMealTypeName(mealType)}สำเร็จ'),
+          duration: const Duration(seconds: 2),
         ),
       );
+    } catch (e) {
+      print("Error updating meal menu: $e");
+
+      // ตรวจสอบ mounted ก่อนใช้ context
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('เกิดข้อผิดพลาดในการเปลี่ยนเมนู: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // โหลดข้อมูลใหม่ในกรณีเกิดข้อผิดพลาด
+      _loadTodayMealPlan();
     }
-    
-    // โหลดข้อมูลใหม่ในกรณีเกิดข้อผิดพลาด
-    _loadTodayMealPlan();
   }
-}
-  
+
   // เฉพาะอัปเดต UI ไม่บันทึกลง Firestore
-  void _updateLocalMealCompletion(String mealType, bool isCompleted) {
-    setState(() {
-      todayMealPlan!['completed'][mealType] = isCompleted;
-    });
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(isCompleted ? 'ทาน${_getMealTypeName(mealType)}สำเร็จ' : 'ยกเลิกการทาน${_getMealTypeName(mealType)}'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+  Future<void> _updateMealCompletion(String mealType, bool isCompleted) async {
+    try {
+      if (currentMealPlanId == null || todayDayIndex == null) {
+        throw Exception('ไม่พบ ID ของแผนอาหารหรือดัชนีของวัน');
+      }
+
+      print("กำลังอัปเดตสถานะการทานอาหาร $mealType เป็น: $isCompleted");
+
+      // อัปเดตข้อมูลในตัวแปร state ก่อน
+      setState(() {
+        todayMealPlan!['completed'][mealType] = isCompleted;
+      });
+
+      // ดึงข้อมูลแผนอาหารปัจจุบันจาก Firestore ก่อน
+      DocumentSnapshot docSnapshot =
+          await _firestore.collection('mealPlans').doc(currentMealPlanId).get();
+      if (!docSnapshot.exists) {
+        throw Exception('ไม่พบแผนอาหาร');
+      }
+
+      // แก้ไขเฉพาะส่วนที่ต้องการ
+      Map<String, dynamic> currentData =
+          docSnapshot.data() as Map<String, dynamic>;
+      List<dynamic> updatedDailyPlans = List.from(currentData['dailyPlans']);
+      updatedDailyPlans[todayDayIndex!]['completed'][mealType] = isCompleted;
+
+      // อัปเดตแผนอาหารทั้งหมด
+      await _firestore
+          .collection('mealPlans')
+          .doc(currentMealPlanId)
+          .update({'dailyPlans': updatedDailyPlans});
+
+      // แจ้งเตือนผู้ใช้
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isCompleted
+              ? 'ทาน${_getMealTypeName(mealType)}สำเร็จ'
+              : 'ยกเลิกการทาน${_getMealTypeName(mealType)}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      print("Error updating meal completion: $e");
+
+      // ตรวจสอบ mounted ก่อนใช้ context
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('เกิดข้อผิดพลาดในการบันทึกสถานะ: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // โหลดข้อมูลใหม่ในกรณีเกิดข้อผิดพลาด
+      _loadTodayMealPlan();
+    }
   }
-  
+
   // เปิดหน้าเปลี่ยนเมนูอาหาร
   void _navigateToMealSelection(String mealType) async {
-  if (todayDayIndex == null || currentMealPlanId == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('ไม่สามารถเปลี่ยนเมนูได้ โปรดลองใหม่อีกครั้ง'),
-        duration: Duration(seconds: 2),
+    if (todayDayIndex == null || currentMealPlanId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('ไม่สามารถเปลี่ยนเมนูได้ โปรดลองใหม่อีกครั้ง'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+
+    // ดึงข้อมูลวันที่และมื้ออาหาร
+    Map<String, dynamic> dayPlan = todayMealPlan!;
+    String currentMealId = dayPlan['meals'][mealType]['menuId'] ?? '';
+
+    // นำทางไปยังหน้าเลือกเมนูอาหาร
+    final selectedMenu = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MealSelectionPage(
+          healthCondition: healthCondition,
+          mealType: mealType,
+          currentMealId: currentMealId,
+          mealPlanId: currentMealPlanId!,
+          dayIndex: todayDayIndex!,
+        ),
       ),
     );
-    return;
+
+    // ตรวจสอบว่ามีการเลือกเมนูใหม่หรือไม่ และตรวจสอบ mounted
+    if (mounted && selectedMenu != null) {
+      _updateMealMenu(mealType, selectedMenu);
+    }
   }
-  
-  // ดึงข้อมูลวันที่และมื้ออาหาร
-  Map<String, dynamic> dayPlan = todayMealPlan!;
-  String currentMealId = dayPlan['meals'][mealType]['menuId'] ?? '';
-  
-  // นำทางไปยังหน้าเลือกเมนูอาหาร
-  final selectedMenu = await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => MealSelectionPage(
-        healthCondition: healthCondition,
-        mealType: mealType,
-        currentMealId: currentMealId,
-        mealPlanId: currentMealPlanId!,
-        dayIndex: todayDayIndex!,
-      ),
-    ),
-  );
-  
-  // ตรวจสอบว่ามีการเลือกเมนูใหม่หรือไม่ และตรวจสอบ mounted
-  if (mounted && selectedMenu != null) {
-    _updateMealMenu(mealType, selectedMenu);
-  }
-}
-  
 
   // แสดงรายละเอียดของเมนูอาหาร
   void _showMealDetails(String mealType) {
@@ -205,8 +292,10 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
     String mealName = meal['name'] ?? 'ไม่มีข้อมูล';
     String description = meal['description'] ?? 'ไม่มีคำอธิบาย';
     List<dynamic> ingredients = meal['ingredients'] ?? [];
+    List<dynamic> instructions = meal['instructions'] ?? []; // เพิ่มวิธีทำ
+    String imageUrl = meal['imageUrl'] ?? ''; // เพิ่ม URL รูปภาพ
     bool isCompleted = todayMealPlan!['completed'][mealType] ?? false;
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -241,10 +330,26 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
                 ],
               ),
               const SizedBox(height: 16),
-              
+
+              // แสดงรูปภาพอาหาร
+              if (imageUrl.isNotEmpty)
+                Container(
+                  width: double.infinity,
+                  height: 200,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    image: DecorationImage(
+                      image: NetworkImage(imageUrl),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+
               // มื้ออาหาร
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.blue.shade100,
                   borderRadius: BorderRadius.circular(20),
@@ -257,9 +362,9 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // คำอธิบาย
               const Text(
                 'คำอธิบาย',
@@ -273,9 +378,9 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
                 description,
                 style: const TextStyle(fontSize: 15),
               ),
-              
+
               const SizedBox(height: 20),
-              
+
               // ส่วนประกอบ
               if (ingredients.isNotEmpty) ...[
                 const Text(
@@ -292,12 +397,13 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.fiber_manual_record, size: 12, color: Colors.grey),
+                        const Icon(Icons.fiber_manual_record,
+                            size: 12, color: Colors.grey),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            ingredient is String 
-                                ? ingredient 
+                            ingredient is String
+                                ? ingredient
                                 : ingredient['name'] ?? 'ไม่ระบุ',
                             style: const TextStyle(fontSize: 15),
                           ),
@@ -307,9 +413,57 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
                   );
                 }).toList(),
               ],
-              
+
+              // เพิ่มวิธีทำ
+              if (instructions.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                const Text(
+                  'วิธีทำ',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...instructions.asMap().entries.map((entry) {
+                  int idx = entry.key;
+                  String step = entry.value;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 24,
+                          height: 24,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade100,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            "${idx + 1}",
+                            style: TextStyle(
+                              color: Colors.blue.shade800,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            step,
+                            style: const TextStyle(fontSize: 15),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+
               const SizedBox(height: 20),
-              
+
               // คุณค่าทางอาหาร
               if (meal['nutritionalInfo'] != null) ...[
                 const Text(
@@ -322,9 +476,9 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
                 const SizedBox(height: 8),
                 _buildDetailedNutritionalInfo(meal['nutritionalInfo']),
               ],
-              
+
               const SizedBox(height: 12),
-              
+
               // ปุ่มเปลี่ยนเมนู
               SizedBox(
                 width: double.infinity,
@@ -340,16 +494,16 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // ปุ่มทานอาหารเสร็จแล้ว
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   onPressed: () {
                     bool currentStatus = isCompleted;
-                    _updateLocalMealCompletion(mealType, !currentStatus);
+                    _updateMealCompletion(mealType, !currentStatus);
                     Navigator.pop(context);
                   },
                   icon: Icon(
@@ -361,7 +515,8 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
                   ),
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    backgroundColor: isCompleted ? Colors.red.shade400 : Colors.green,
+                    backgroundColor:
+                        isCompleted ? Colors.red.shade400 : Colors.green,
                   ),
                 ),
               ),
@@ -371,11 +526,12 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
       ),
     );
   }
-  
+
   // สร้าง Widget แสดงข้อมูลคุณค่าทางอาหาร (สำหรับหน้ารายละเอียด)
   Widget _buildDetailedNutritionalInfo(Map<String, dynamic> nutritionalInfo) {
-    final List<MapEntry<String, dynamic>> entries = nutritionalInfo.entries.toList();
-    
+    final List<MapEntry<String, dynamic>> entries =
+        nutritionalInfo.entries.toList();
+
     return Column(
       children: [
         for (int i = 0; i < entries.length; i += 2)
@@ -385,12 +541,14 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
               children: [
                 // คอลัมน์ซ้าย
                 Expanded(
-                  child: _buildNutrientDetailItem(entries[i].key, entries[i].value),
+                  child: _buildNutrientDetailItem(
+                      entries[i].key, entries[i].value),
                 ),
                 // คอลัมน์ขวา (ถ้ามี)
                 if (i + 1 < entries.length)
                   Expanded(
-                    child: _buildNutrientDetailItem(entries[i + 1].key, entries[i + 1].value),
+                    child: _buildNutrientDetailItem(
+                        entries[i + 1].key, entries[i + 1].value),
                   ),
               ],
             ),
@@ -403,17 +561,17 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
   Widget _buildNutrientDetailItem(String name, dynamic value) {
     // แปลงชื่อสารอาหารเป็นภาษาไทย
     String thaiName = _translateNutrientName(name);
-    
+
     // แปลงค่าให้อยู่ในรูปแบบที่เหมาะสม
-    String formattedValue = value is num 
-        ? value.toString() 
-        : value is String 
-            ? value 
+    String formattedValue = value is num
+        ? value.toString()
+        : value is String
+            ? value
             : 'ไม่ระบุ';
-            
+
     // เพิ่มหน่วยวัดตามชนิดของสารอาหาร
     String unit = _getNutrientUnit(name);
-    
+
     return Row(
       children: [
         Container(
@@ -469,7 +627,7 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
         return name;
     }
   }
-  
+
   // กำหนดหน่วยวัดตามชนิดของสารอาหาร
   String _getNutrientUnit(String name) {
     switch (name.toLowerCase()) {
@@ -489,7 +647,7 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
         return '';
     }
   }
-  
+
   // แปลงชื่อมื้อเป็นภาษาไทย
   String _getMealTypeName(String mealType) {
     switch (mealType) {
@@ -505,134 +663,158 @@ Future<void> _updateMealMenu(String mealType, Map<String, dynamic> newMenu) asyn
   }
 
   @override
-Widget build(BuildContext context) {
-  if (isLoading) {
-    return const Center(
-      child: CircularProgressIndicator(),
-    );
-  }
-  
-  if (todayMealPlan == null) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+  Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(),
+      );
+    }
+
+    if (todayMealPlan == null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.no_meals, size: 80, color: Colors.grey),
+            const SizedBox(height: 20),
+            const Text(
+              "ไม่พบรายการอาหารวันนี้",
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            const Text("ไม่พบแผนอาหารสำหรับวันนี้ กรุณาสร้างแผนอาหารใหม่"),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.refresh),
+              label: const Text("โหลดข้อมูลใหม่"),
+              onPressed: _loadTodayMealPlan,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ชื่อวันและวันที่
+    String dayName = todayMealPlan!['dayName'];
+    DateTime planDate = (todayMealPlan!['date'] as Timestamp).toDate();
+    String formattedDate = DateFormat('d MMMM yyyy', 'th_TH').format(planDate);
+
+    // ข้อมูลมื้ออาหาร
+    Map<String, dynamic> meals = todayMealPlan!['meals'];
+    Map<String, dynamic> completed = todayMealPlan!['completed'];
+
+    // รายการไอคอนและสีของมื้ออาหาร
+    List<IconData> mealIcons = [
+      Icons.wb_sunny_outlined,
+      Icons.wb_sunny,
+      Icons.nightlight_round
+    ];
+    List<Color> mealIconColors = [
+      Colors.orange,
+      Colors.orange.shade700,
+      Colors.indigo
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      child: ListView(
         children: [
-          const Icon(Icons.no_meals, size: 80, color: Colors.grey),
-          const SizedBox(height: 20),
-          const Text(
-            "ไม่พบรายการอาหารวันนี้",
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          // ส่วนหัวและวันที่ (โค้ดเดิม)
+          Row(
+            children: [
+              Icon(Icons.today, color: Colors.blue, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'เมนูอาหารวันนี้',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue.shade800,
+                      ),
+                    ),
+                    Text(
+                      '$dayName ($formattedDate)',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ],
+                ),
+              ),
+              if (healthCondition != 'healthy')
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    healthCondition,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(height: 20),
-          const Text("ไม่พบแผนอาหารสำหรับวันนี้ กรุณาสร้างแผนอาหารใหม่"),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.refresh),
-            label: const Text("โหลดข้อมูลใหม่"),
-            onPressed: _loadTodayMealPlan,
+
+          const SizedBox(height: 16),
+
+          // เพิ่มส่วนแสดงรูปภาพแนะนำด้านล่างส่วนหัว
+          // แสดงรูปภาพแนะนำด้านสุขภาพ
+if (healthConditionImage != null)
+  Container(
+    width: double.infinity,
+    height: MediaQuery.of(context).size.width * (9 / 16), // 16:9
+    margin: const EdgeInsets.only(bottom: 16),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(12),
+      image: DecorationImage(
+        image: AssetImage(healthConditionImage!),
+        fit: BoxFit.cover,
+      ),
+    ),
+  ),
+
+          const SizedBox(height: 8),
+
+          // รายการมื้ออาหาร (โค้ดเดิม)
+          _buildMealCard(
+            icon: mealIcons[0],
+            iconColor: mealIconColors[0],
+            mealType: 'breakfast',
+            mealName: 'มื้อเช้า',
+            meal: meals['breakfast'],
+            isCompleted: completed['breakfast'] ?? false,
           ),
+          const SizedBox(height: 16),
+          _buildMealCard(
+            icon: mealIcons[1],
+            iconColor: mealIconColors[1],
+            mealType: 'lunch',
+            mealName: 'มื้อเที่ยง',
+            meal: meals['lunch'],
+            isCompleted: completed['lunch'] ?? false,
+          ),
+          const SizedBox(height: 16),
+          _buildMealCard(
+            icon: mealIcons[2],
+            iconColor: mealIconColors[2],
+            mealType: 'dinner',
+            mealName: 'มื้อเย็น',
+            meal: meals['dinner'],
+            isCompleted: completed['dinner'] ?? false,
+          ),
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
-  
-  // ชื่อวันและวันที่
-  String dayName = todayMealPlan!['dayName'];
-  DateTime planDate = (todayMealPlan!['date'] as Timestamp).toDate();
-  String formattedDate = DateFormat('d MMMM yyyy', 'th_TH').format(planDate);
-  
-  // ข้อมูลมื้ออาหาร
-  Map<String, dynamic> meals = todayMealPlan!['meals'];
-  Map<String, dynamic> completed = todayMealPlan!['completed'];
-  
-  // รายการไอคอนและสีของมื้ออาหาร
-  List<IconData> mealIcons = [Icons.wb_sunny_outlined, Icons.wb_sunny, Icons.nightlight_round];
-  List<Color> mealIconColors = [Colors.orange, Colors.orange.shade700, Colors.indigo];
-  
-  return Container(
-    padding: const EdgeInsets.all(16.0),
-    child: ListView(
-      children: [
-        // ส่วนหัวและวันที่ (ทำให้เล็กลงและเป็นส่วนหนึ่งของรายการที่เลื่อนได้)
-        Row(
-          children: [
-            Icon(Icons.today, color: Colors.blue, size: 20),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'เมนูอาหารวันนี้',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue.shade800,
-                    ),
-                  ),
-                  Text(
-                    '$dayName ($formattedDate)',
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
-            if (healthCondition != 'healthy')
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  healthCondition,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade700,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        
-        const SizedBox(height: 16),
-        const Divider(),
-        const SizedBox(height: 8),
-        
-        // รายการมื้ออาหาร
-        _buildMealCard(
-          icon: mealIcons[0],
-          iconColor: mealIconColors[0],
-          mealType: 'breakfast',
-          mealName: 'มื้อเช้า',
-          meal: meals['breakfast'],
-          isCompleted: completed['breakfast'] ?? false,
-        ),
-        const SizedBox(height: 16),
-        _buildMealCard(
-          icon: mealIcons[1],
-          iconColor: mealIconColors[1],
-          mealType: 'lunch',
-          mealName: 'มื้อเที่ยง',
-          meal: meals['lunch'],
-          isCompleted: completed['lunch'] ?? false,
-        ),
-        const SizedBox(height: 16),
-        _buildMealCard(
-          icon: mealIcons[2],
-          iconColor: mealIconColors[2],
-          mealType: 'dinner',
-          mealName: 'มื้อเย็น',
-          meal: meals['dinner'],
-          isCompleted: completed['dinner'] ?? false,
-        ),
-        const SizedBox(height: 16),
-      ],
-    ),
-  );
-}
 
-  
   // สร้างการ์ดแสดงเมนูอาหาร
   Widget _buildMealCard({
     required IconData icon,
@@ -644,7 +826,8 @@ Widget build(BuildContext context) {
   }) {
     String menuName = meal['name'] ?? 'ยังไม่ได้กำหนด';
     String description = meal['description'] ?? '';
-    
+    String imageUrl = meal['imageUrl'] ?? '';
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -682,14 +865,29 @@ Widget build(BuildContext context) {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   onChanged: (value) {
-                    _updateLocalMealCompletion(mealType, value ?? false);
+                    _updateMealCompletion(mealType, value ?? false);
                   },
                 ),
               ],
             ),
-            
-            const Divider(height: 24),
-            
+
+            const SizedBox(height: 24),
+
+            // แสดงรูปภาพของเมนูอาหาร (หากมี)
+            if (imageUrl.isNotEmpty)
+              Container(
+                width: double.infinity,
+                height: 150,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  image: DecorationImage(
+                    image: NetworkImage(imageUrl),
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+
             // ชื่อเมนู
             Text(
               menuName,
@@ -700,7 +898,7 @@ Widget build(BuildContext context) {
                 color: isCompleted ? Colors.green : Colors.black,
               ),
             ),
-            
+
             // รายละเอียด (ถ้ามี)
             if (description.isNotEmpty)
               Padding(
@@ -714,13 +912,14 @@ Widget build(BuildContext context) {
                   ),
                 ),
               ),
-              
+
             // แสดงสารอาหาร (ถ้ามี)
-            if (meal['nutritionalInfo'] != null && meal['nutritionalInfo'] is Map)
+            if (meal['nutritionalInfo'] != null &&
+                meal['nutritionalInfo'] is Map)
               _buildNutritionalInfo(meal['nutritionalInfo']),
-            
+
             const SizedBox(height: 16),
-            
+
             // แถวปุ่ม ดูรายละเอียด และ เปลี่ยนเมนู
             Row(
               children: [
@@ -749,12 +948,13 @@ Widget build(BuildContext context) {
                 ),
               ],
             ),
-              
+
             // แสดงป้ายกำกับการทานแล้ว
             if (isCompleted)
               Container(
                 margin: const EdgeInsets.only(top: 16),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.green.shade100,
                   borderRadius: BorderRadius.circular(16),
@@ -780,7 +980,7 @@ Widget build(BuildContext context) {
       ),
     );
   }
-  
+
   // แสดงข้อมูลสารอาหาร
   Widget _buildNutritionalInfo(Map<String, dynamic> nutritionalInfo) {
     return Container(
@@ -806,24 +1006,24 @@ Widget build(BuildContext context) {
             runSpacing: 8,
             children: [
               if (nutritionalInfo['calories'] != null)
-                _nutrientItem("แคลอรี่", "${nutritionalInfo['calories']} กิโลแคลอรี่"),
+                _nutrientItem("แคลอรี่", "${nutritionalInfo['calories']}"),
               if (nutritionalInfo['protein'] != null)
-                _nutrientItem("โปรตีน", "${nutritionalInfo['protein']} กรัม"),
+                _nutrientItem("โปรตีน", "${nutritionalInfo['protein']}"),
               if (nutritionalInfo['carbs'] != null)
-                _nutrientItem("คาร์โบไฮเดรต", "${nutritionalInfo['carbs']} กรัม"),
+                _nutrientItem("คาร์โบไฮเดรต", "${nutritionalInfo['carbs']}"),
               if (nutritionalInfo['fat'] != null)
-                _nutrientItem("ไขมัน", "${nutritionalInfo['fat']} กรัม"),
+                _nutrientItem("ไขมัน", "${nutritionalInfo['fat']}"),
               if (nutritionalInfo['fiber'] != null)
-                _nutrientItem("ใยอาหาร", "${nutritionalInfo['fiber']} กรัม"),
+                _nutrientItem("ใยอาหาร", "${nutritionalInfo['fiber']}"),
               if (nutritionalInfo['sugar'] != null)
-                _nutrientItem("น้ำตาล", "${nutritionalInfo['sugar']} กรัม"),
+                _nutrientItem("น้ำตาล", "${nutritionalInfo['sugar']}"),
             ],
           ),
         ],
       ),
     );
   }
-  
+
   Widget _nutrientItem(String label, String value) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -833,7 +1033,7 @@ Widget build(BuildContext context) {
           style: const TextStyle(fontSize: 13),
         ),
         Text(
-          value,
+          value, // ใช้ค่าเดิมที่มีหน่วยอยู่แล้ว
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 13,

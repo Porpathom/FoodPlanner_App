@@ -310,19 +310,19 @@ String _getConditionKey(String condition) {
 
   // แสดงหน้ารายละเอียดเมนูอาหาร
 // แสดงหน้ารายละเอียดเมนูอาหาร
+// แสดงหน้ารายละเอียดเมนูอาหาร
 void _showMealDetails(Map<String, dynamic> meal) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    isDismissible: true, // เพิ่มตัวเลือกให้สามารถปิดโดยการแตะด้านนอก
-    enableDrag: true, // เปิดใช้งานการลากเพื่อปิด
+    isDismissible: true,
+    enableDrag: true,
     builder: (context) => DraggableScrollableSheet(
       initialChildSize: 0.9,
       minChildSize: 0.5,
       maxChildSize: 0.9,
       builder: (_, controller) => GestureDetector(
-        // ป้องกันการปิดเมื่อแตะบนเนื้อหา
         onTap: () {}, 
         child: Container(
           decoration: const BoxDecoration(
@@ -362,6 +362,43 @@ void _showMealDetails(Map<String, dynamic> meal) {
                   controller: controller,
                   padding: const EdgeInsets.all(20),
                   children: [
+                    // รูปภาพอาหาร (เพิ่มใหม่)
+                    if (meal['imageUrl'] != null && meal['imageUrl'].toString().isNotEmpty) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          meal['imageUrl'],
+                          height: 200,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              height: 200,
+                              width: double.infinity,
+                              color: Colors.grey.shade200,
+                              child: const Center(
+                                child: Icon(Icons.image_not_supported, size: 64, color: Colors.grey),
+                              ),
+                            );
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) {
+                              return child;
+                            }
+                            return Container(
+                              height: 200,
+                              width: double.infinity,
+                              color: Colors.grey.shade200,
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                    
                     // ชื่อเมนูและไอคอน
                     Row(
                       children: [
@@ -450,6 +487,20 @@ void _showMealDetails(Map<String, dynamic> meal) {
                       ),
                       const SizedBox(height: 12),
                       _buildIngredientsDetail(meal['ingredients']),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // วิธีทำอาหาร (เพิ่มใหม่)
+                    if (meal['instructions'] != null && (meal['instructions'] as List).isNotEmpty) ...[
+                      const Text(
+                        'วิธีทำ',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildInstructionsDetail(meal['instructions']),
                       const SizedBox(height: 24),
                     ],
                     
@@ -561,55 +612,87 @@ void _showMealDetails(Map<String, dynamic> meal) {
     ),
   );
 }
-  
-  // แสดงส่วนประกอบแบบละเอียด
-  Widget _buildIngredientsDetail(List<dynamic> ingredients) {
-    return Column(
-      children: ingredients.map((ingredient) {
-        String ingredientName;
-        String? amount;
+
+// สร้าง Widget สำหรับแสดงวิธีทำอาหาร (เพิ่มใหม่)
+// สร้าง Widget สำหรับแสดงรายละเอียดส่วนประกอบ
+Widget _buildIngredientsDetail(List<dynamic> ingredients) {
+  return Column(
+    children: List.generate(ingredients.length, (index) {
+      // ตรวจสอบว่าส่วนประกอบเป็น String หรือ Map
+      String ingredientText;
+      if (ingredients[index] is String) {
+        ingredientText = ingredients[index];
+      } else if (ingredients[index] is Map) {
+        // ถ้าเป็น Map จะมีชื่อและปริมาณ
+        final ingredient = ingredients[index];
+        final name = ingredient['name'] ?? 'ไม่ระบุ';
+        final amount = ingredient['amount'] ?? '';
+        final unit = ingredient['unit'] ?? '';
         
-        if (ingredient is String) {
-          ingredientName = ingredient;
-        } else {
-          ingredientName = ingredient['name'] ?? 'ไม่ระบุ';
-          amount = ingredient['amount']?.toString();
-        }
-        
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 8.0),
-          child: Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: Colors.green.shade300,
-                  shape: BoxShape.circle,
+        ingredientText = '$name ${amount.toString()}${unit.isNotEmpty ? ' $unit' : ''}';
+      } else {
+        ingredientText = 'ไม่ระบุ';
+      }
+      
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.fiber_manual_record, size: 12, color: Colors.grey.shade600),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                ingredientText,
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+          ],
+        ),
+      );
+    }),
+  );
+}
+
+// สร้าง Widget สำหรับแสดงวิธีทำอาหาร (เพิ่มใหม่)
+Widget _buildInstructionsDetail(List<dynamic> instructions) {
+  return Column(
+    children: List.generate(instructions.length, (index) {
+      final instruction = instructions[index];
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12.0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: Colors.blue.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: Text(
+                '${index + 1}',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue.shade800,
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  ingredientName,
-                  style: const TextStyle(fontSize: 14),
-                ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                instruction,
+                style: const TextStyle(fontSize: 14),
               ),
-              if (amount != null) ...[
-                Text(
-                  amount,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
+            ),
+          ],
+        ),
+      );
+    }),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -814,146 +897,173 @@ void _showMealDetails(Map<String, dynamic> meal) {
 
   // สร้าง ListView แสดงรายการเมนูอาหาร
   Widget _buildMealsList(List<Map<String, dynamic>> meals) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: meals.length,
-      itemBuilder: (context, index) {
-        final meal = meals[index];
-        final bool isSelected = meal['id'] == selectedMealId;
-        
-        return Card(
-          elevation: 2,
-          margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(
-              color: isSelected ? Colors.blue : Colors.transparent,
-              width: isSelected ? 2 : 0,
-            ),
+  return ListView.builder(
+    padding: const EdgeInsets.all(12),
+    itemCount: meals.length,
+    itemBuilder: (context, index) {
+      final meal = meals[index];
+      final bool isSelected = meal['id'] == selectedMealId;
+      
+      return Card(
+        elevation: 2,
+        margin: const EdgeInsets.only(bottom: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: isSelected ? Colors.blue : Colors.transparent,
+            width: isSelected ? 2 : 0,
           ),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => _showMealDetails(meal),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ส่วนหัวคาร์ด
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ไอคอนประเภทอาหาร
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: mealTypeColors[widget.mealType]?.withOpacity(0.1) 
-                                ?? Colors.grey.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _showMealDetails(meal),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // แสดงรูปภาพอาหาร (ถ้ามี)
+              if (meal['imageUrl'] != null && meal['imageUrl'].toString().isNotEmpty)
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  child: Image.network(
+                    meal['imageUrl'],
+                    height: 150,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: 150,
+                        width: double.infinity,
+                        color: Colors.grey.shade200,
+                        child: const Center(
+                          child: Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
                         ),
-                        child: Icon(
-                          mealTypeIcons[widget.mealType] ?? Icons.restaurant,
-                          color: mealTypeColors[widget.mealType] ?? Colors.grey,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      
-                      // ชื่อเมนูและข้อมูลโภชนาการ
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              meal['name'] ?? 'ไม่มีชื่อเมนู',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            if (meal['category'] != null) ...[
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade200,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  meal['category'],
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey.shade700,
-                                  ),
-                                ),
-                              ),
-                            ],
-                            if (meal['nutritionalInfo'] != null) ...[
-                              const SizedBox(height: 4),
-                              _buildNutritionalInfo(meal['nutritionalInfo']),
-                            ],
-                          ],
-                        ),
-                      ),
-                      
-                      // ปุ่มเลือก
-                      if (isSelected)
-                        const Icon(Icons.check_circle, color: Colors.blue)
-                    ],
+                      );
+                    },
                   ),
-                  
-                  // คำอธิบายเมนู
-                  if (meal['description'] != null && meal['description'].toString().isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      meal['description'],
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  
-                  // รายการส่วนประกอบ
-                  if (meal['ingredients'] != null && 
-                     (meal['ingredients'] as List).isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    _buildIngredientsList(meal['ingredients']),
-                  ],
-                  
-                  // ปุ่มดูรายละเอียดและเลือกเมนูนี้
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton.icon(
-                        onPressed: () => _showMealDetails(meal),
-                        icon: const Icon(Icons.info_outline),
-                        label: const Text('ดูรายละเอียด'),
-                      ),
-                      ElevatedButton(
-                        onPressed: () => _selectMeal(meal),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: isSelected ? Colors.green : null,
-                        ),
-                        child: Text(
-                          isSelected ? 'เมนูที่เลือกอยู่' : 'เลือกเมนูนี้',
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : null,
+                ),
+              
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ส่วนหัวคาร์ด
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ไอคอนประเภทอาหาร
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: mealTypeColors[widget.mealType]?.withOpacity(0.1) 
+                                  ?? Colors.grey.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            mealTypeIcons[widget.mealType] ?? Icons.restaurant,
+                            color: mealTypeColors[widget.mealType] ?? Colors.grey,
                           ),
                         ),
+                        const SizedBox(width: 12),
+                        
+                        // ชื่อเมนูและข้อมูลโภชนาการ
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                meal['name'] ?? 'ไม่มีชื่อเมนู',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (meal['category'] != null) ...[
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade200,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    meal['category'],
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey.shade700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              if (meal['nutritionalInfo'] != null) ...[
+                                const SizedBox(height: 4),
+                                _buildNutritionalInfo(meal['nutritionalInfo']),
+                              ],
+                            ],
+                          ),
+                        ),
+                        
+                        // ปุ่มเลือก
+                        if (isSelected)
+                          const Icon(Icons.check_circle, color: Colors.blue)
+                      ],
+                    ),
+                    
+                    // คำอธิบายเมนู
+                    if (meal['description'] != null && meal['description'].toString().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        meal['description'],
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
-                  ),
-                ],
+                    
+                    // รายการส่วนประกอบ
+                    if (meal['ingredients'] != null && 
+                       (meal['ingredients'] as List).isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildIngredientsList(meal['ingredients']),
+                    ],
+                    
+                    // ปุ่มดูรายละเอียดและเลือกเมนูนี้
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton.icon(
+                          onPressed: () => _showMealDetails(meal),
+                          icon: const Icon(Icons.info_outline),
+                          label: const Text('ดูรายละเอียด'),
+                        ),
+                        ElevatedButton(
+                          onPressed: () => _selectMeal(meal),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isSelected ? Colors.green : null,
+                          ),
+                          child: Text(
+                            isSelected ? 'เมนูที่เลือกอยู่' : 'เลือกเมนูนี้',
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : null,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
   
   // สร้างรายการส่วนประกอบ
   Widget _buildIngredientsList(List<dynamic> ingredients) {
