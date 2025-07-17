@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
 
 class MealSelectionPage extends StatefulWidget {
   final String healthCondition;
@@ -11,13 +13,13 @@ class MealSelectionPage extends StatefulWidget {
   final int dayIndex; // Add this line if it doesn't exist
 
   const MealSelectionPage({
-    Key? key,
+    super.key,
     required this.healthCondition,
     required this.mealType,
     required this.currentMealId,
     required this.mealPlanId, // Add this line
     required this.dayIndex, // Add this line if it doesn't exist
-  }) : super(key: key);
+  });
 
   @override
   _MealSelectionPageState createState() => _MealSelectionPageState();
@@ -226,7 +228,7 @@ String _getConditionKey(String condition) {
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       );
     } else {
@@ -365,37 +367,30 @@ void _showMealDetails(Map<String, dynamic> meal) {
                     // รูปภาพอาหาร (เพิ่มใหม่)
                     if (meal['imageUrl'] != null && meal['imageUrl'].toString().isNotEmpty) ...[
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          meal['imageUrl'],
-                          height: 200,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              height: 200,
-                              width: double.infinity,
-                              color: Colors.grey.shade200,
-                              child: const Center(
-                                child: Icon(Icons.image_not_supported, size: 64, color: Colors.grey),
-                              ),
-                            );
-                          },
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) {
-                              return child;
-                            }
-                            return Container(
-                              height: 200,
-                              width: double.infinity,
-                              color: Colors.grey.shade200,
-                              child: const Center(
-                                child: CircularProgressIndicator(),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+  borderRadius: BorderRadius.circular(12),
+  child: CachedNetworkImage(
+    imageUrl: meal['imageUrl'],
+    height: 200,
+    width: double.infinity,
+    fit: BoxFit.cover,
+    placeholder: (context, url) => Container(
+      height: 200,
+      width: double.infinity,
+      color: Colors.grey.shade200,
+      child: const Center(
+        child: CircularProgressIndicator(),
+      ),
+    ),
+    errorWidget: (context, url, error) => Container(
+      height: 200,
+      width: double.infinity,
+      color: Colors.grey.shade200,
+      child: const Center(
+        child: Icon(Icons.image_not_supported, size: 64, color: Colors.grey),
+      ),
+    ),
+  ),
+),
                       const SizedBox(height: 20),
                     ],
                     
@@ -885,7 +880,7 @@ Widget _buildInstructionsDetail(List<dynamic> instructions) {
                         },
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ),
@@ -923,24 +918,30 @@ Widget _buildInstructionsDetail(List<dynamic> instructions) {
               // แสดงรูปภาพอาหาร (ถ้ามี)
               if (meal['imageUrl'] != null && meal['imageUrl'].toString().isNotEmpty)
                 ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                  child: Image.network(
-                    meal['imageUrl'],
-                    height: 150,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: 150,
-                        width: double.infinity,
-                        color: Colors.grey.shade200,
-                        child: const Center(
-                          child: Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
-                        ),
-                      );
-                    },
-                  ),
-                ),
+  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+  child: CachedNetworkImage(
+    imageUrl: meal['imageUrl'],
+    height: 150,
+    width: double.infinity,
+    fit: BoxFit.cover,
+    placeholder: (context, url) => Container(
+      height: 150,
+      width: double.infinity,
+      color: Colors.grey.shade200,
+      child: const Center(
+        child: CircularProgressIndicator(),
+      ),
+    ),
+    errorWidget: (context, url, error) => Container(
+      height: 150,
+      width: double.infinity,
+      color: Colors.grey.shade200,
+      child: const Center(
+        child: Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
+      ),
+    ),
+  ),
+),
               
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -1105,7 +1106,7 @@ Widget _buildInstructionsDetail(List<dynamic> instructions) {
                   ),
                 ),
               );
-            }).toList(),
+            }),
             
             // แสดงจำนวนส่วนประกอบที่เหลือ
             if (remainingCount > 0)

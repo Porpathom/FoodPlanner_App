@@ -6,7 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 class MealHistoryReportPage extends StatefulWidget {
-  const MealHistoryReportPage({Key? key}) : super(key: key);
+  const MealHistoryReportPage({super.key});
 
   @override
   State<MealHistoryReportPage> createState() => _MealHistoryReportPageState();
@@ -207,11 +207,11 @@ class _MealHistoryReportPageState extends State<MealHistoryReportPage>
     return Theme(
       data: Theme.of(context).copyWith(
         colorScheme: Theme.of(context).colorScheme.copyWith(),
-        tabBarTheme: TabBarTheme(
+        tabBarTheme: TabBarThemeData(
           labelColor: const Color.fromARGB(255, 0, 0, 0),
           unselectedLabelColor:
               const Color.fromARGB(255, 59, 56, 56).withOpacity(0.7),
-          indicator: BoxDecoration(
+          indicator: const BoxDecoration(
             border: null,
           ),
           dividerColor: Colors.transparent,
@@ -233,12 +233,12 @@ class _MealHistoryReportPageState extends State<MealHistoryReportPage>
                           padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
                           child: Column(
                             children: [
-                              Text(
+                              const Text(
                                 'ประวัติการทานอาหาร',
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
-                                  color: const Color.fromARGB(255, 6, 0, 0),
+                                  color: Color.fromARGB(255, 6, 0, 0),
                                 ),
                               ),
                               const SizedBox(height: 16),
@@ -598,8 +598,8 @@ class _MealHistoryReportPageState extends State<MealHistoryReportPage>
                 ),
               ),
               rightTitles:
-                  AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             ),
             borderData: FlBorderData(
               show: true,
@@ -630,11 +630,11 @@ class _MealHistoryReportPageState extends State<MealHistoryReportPage>
     List<dynamic> dailyPlans = currentMealPlan!['dailyPlans'];
     
     // หาวันในสัปดาห์ของวันเริ่มต้น (0=อาทิตย์, 1=จันทร์, ..., 6=เสาร์)
-    int startingWeekday = startDate!.weekday % 7; // Dart weekday: 1=จันทร์, 7=อาทิตย์
+// Dart weekday: 1=จันทร์, 7=อาทิตย์
     
     for (int i = 0; i < dailyPlans.length; i++) {
       Map<String, dynamic> dayPlan = dailyPlans[i];
-      DateTime planDate = (dayPlan['date'] as Timestamp).toDate();
+      (dayPlan['date'] as Timestamp).toDate();
       
       // คำนวณลำดับวันในกราฟโดยเริ่มจากวันแรกของแผน
       int displayOrder = i;
@@ -823,7 +823,6 @@ class _MealHistoryReportPageState extends State<MealHistoryReportPage>
         // นับจำนวนมื้อที่ทานแล้วและพลาดในวันนี้
         int completedCount =
             dayMeals.where((meal) => meal['isCompleted']).length;
-        int missedCount = dayMeals.length - completedCount;
 
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
@@ -858,7 +857,7 @@ class _MealHistoryReportPageState extends State<MealHistoryReportPage>
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      '${completedCount}/${dayMeals.length}',
+                      '$completedCount/${dayMeals.length}',
                       style: TextStyle(
                         fontSize: 14,
                         color: completedCount == 3
@@ -872,7 +871,7 @@ class _MealHistoryReportPageState extends State<MealHistoryReportPage>
                   ],
                 ),
                 const Divider(height: 24),
-                ...dayMeals.map((meal) => _buildMealItem(meal)).toList(),
+                ...dayMeals.map((meal) => _buildMealItem(meal)),
               ],
             ),
           ),

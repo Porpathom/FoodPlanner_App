@@ -10,6 +10,7 @@ import 'notification_service.dart';
 import 'permission_service.dart';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -59,11 +60,6 @@ Future<void> _initializeAppServices() async {
     final hasPermission = await permissionService.requestNotificationPermission();
     debugPrint('Notification permission granted: $hasPermission');
 
-    // Reload Scheduled Notifications only if permission is granted
-    if (hasPermission) {
-      await notificationService.reloadScheduledNotifications();
-      debugPrint('Scheduled notifications reloaded');
-    }
   } catch (e) {
     debugPrint('Service initialization error: $e');
   }
@@ -72,12 +68,15 @@ Future<void> _initializeAppServices() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Food Planner',
       theme: _buildAppTheme(context),
+      navigatorKey: navigatorKey,
       home: _determineInitialPage(),
     );
   }
@@ -114,10 +113,27 @@ class MyApp extends StatelessWidget {
         ),
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: Color.fromARGB(255, 188, 249, 190),
-        elevation: 0,
+      // Enhanced AppBar with modern design
+      appBarTheme: AppBarTheme(
+        backgroundColor: const Color(0xFF4CAF50),
+        elevation: 8,
+        shadowColor: Colors.black26,
         centerTitle: true,
+        titleTextStyle: GoogleFonts.poppins(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+          letterSpacing: 0.5,
+        ),
+        iconTheme: const IconThemeData(
+          color: Colors.white,
+          size: 24,
+        ),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(20),
+          ),
+        ),
       ),
     );
   }
@@ -125,10 +141,112 @@ class MyApp extends StatelessWidget {
   Widget _determineInitialPage() {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      return user != null ?  DashboardPage() :  HomePage();
+      return user != null ? DashboardPage() : HomePage();
     } catch (e) {
       debugPrint('Error determining initial page: $e');
-      return  HomePage(); // Fallback to HomePage on error
+      return HomePage(); // Fallback to HomePage on error
     }
   }
 }
+
+// Custom AppBar Widget with Logo
+class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+  final List<Widget>? actions;
+  final Widget? leading;
+  final bool showLogo;
+
+  const CustomAppBar({
+    super.key,
+    required this.title,
+    this.actions,
+    this.leading,
+    this.showLogo = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF66BB6A), // Light green
+            Color(0xFF4CAF50), // Primary green
+            Color(0xFF388E3C), // Dark green
+          ],
+          stops: [0.0, 0.5, 1.0],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black26,
+            offset: Offset(0, 2),
+            blurRadius: 8,
+          ),
+        ],
+      ),
+      child: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        centerTitle: true,
+        leading: leading,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (showLogo) ...[
+              Container(
+                width: 32,
+                height: 32,
+                margin: const EdgeInsets.only(right: 12),
+                child: Image.asset(
+                  'assets/images/notification_icon.png', // คุณจะต้องคัดลอกไฟล์ไปยัง assets/images/
+                  width: 32,
+                  height: 32,
+                  color: Colors.white,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Fallback icon ถ้าโหลดรูปไม่ได้
+                    return const Icon(
+                      Icons.restaurant_menu,
+                      color: Colors.white,
+                      size: 32,
+                    );
+                  },
+                ),
+              ),
+            ],
+            Text(
+              title,
+              style: GoogleFonts.poppins(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+        actions: actions,
+        iconTheme: const IconThemeData(
+          color: Colors.white,
+          size: 24,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+}
+
+// วิธีใช้งาน CustomAppBar ในหน้าต่างๆ
+// Example usage in your pages:
+/*
+Scaffold(
+  appBar: const CustomAppBar(
+    title: 'Food Planner',
+    showLogo: true,
+  ),
+  body: YourPageContent(),
+)
+*/

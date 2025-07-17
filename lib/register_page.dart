@@ -3,7 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'login_page.dart'; // เพิ่มการนำเข้าไฟล์ login_page.dart
 
 class RegisterPage extends StatefulWidget {
@@ -28,21 +27,6 @@ void initState() {
   });
 }
 
-  Future<void> _initializeFirebase() async {
-    try {
-      if (Firebase.apps.length == 0) {
-        await Firebase.initializeApp();
-      }
-      setState(() {
-        _isFirebaseInitialized = true;
-      });
-    } catch (e) {
-      print('Error initializing Firebase: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to initialize Firebase: $e')),
-      );
-    }
-  }
 
   void _registerUser() async {
   if (!_isFirebaseInitialized) {

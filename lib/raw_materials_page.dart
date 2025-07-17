@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
 
 class RawMaterialsPage extends StatefulWidget {
-  const RawMaterialsPage({Key? key}) : super(key: key);
+  const RawMaterialsPage({super.key});
 
   @override
   _RawMaterialsPageState createState() => _RawMaterialsPageState();
@@ -264,13 +266,13 @@ Widget build(BuildContext context) {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      const Row(
                         children: [
-                          const Icon(Icons.shopping_basket, color: Colors.green),
-                          const SizedBox(width: 8),
+                          Icon(Icons.shopping_basket, color: Colors.green),
+                          SizedBox(width: 8),
                           Text(
                             "รายการวัตถุดิบประจำสัปดาห์",
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
@@ -358,28 +360,31 @@ Widget build(BuildContext context) {
                         ),
                         child: Row(
                           children: [
-                            // รูปเมนูอาหาร (ถ้ามี)
-                            if (imageUrl != null && imageUrl.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 12.0),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: Image.network(
-                                    imageUrl,
-                                    width: 60,
-                                    height: 60,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        width: 60,
-                                        height: 60,
-                                        color: Colors.grey[300],
-                                        child: const Icon(Icons.image_not_supported, color: Colors.grey),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ),
+if (imageUrl != null && imageUrl.isNotEmpty)
+  Padding(
+    padding: const EdgeInsets.only(right: 12.0),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: CachedNetworkImage(
+        imageUrl: imageUrl,
+        width: 60,
+        height: 60,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          width: 60,
+          height: 60,
+          color: Colors.grey[300],
+          child: Center(child: CircularProgressIndicator()),
+        ),
+        errorWidget: (context, url, error) => Container(
+          width: 60,
+          height: 60,
+          color: Colors.grey[300],
+          child: Icon(Icons.image_not_supported, color: Colors.grey),
+        ),
+      ),
+    ),
+  ),
                             
                             // ข้อมูลมื้ออาหาร
                             Expanded(

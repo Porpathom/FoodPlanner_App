@@ -3,10 +3,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'edit_user_data_page.dart'; // สำหรับกรอกข้อมูล
 import 'meal_plan_display_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:intl/date_symbol_data_local.dart'; // A
+import 'package:intl/date_symbol_data_local.dart'; 
+import 'edit_user_data_page.dart';
 
 class MenuPlanPage extends StatefulWidget {
   @override
@@ -74,15 +74,16 @@ Future<void> _loadShowMealPlanDisplay() async {
           Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
           print("🔥 Loaded data: $data");
 
-          bool dataComplete = data.containsKey('breakfastTime') &&
-              data['breakfastTime'] != null &&
-              data['breakfastTime'].toString().isNotEmpty &&
-              data.containsKey('lunchTime') &&
-              data['lunchTime'] != null &&
-              data['lunchTime'].toString().isNotEmpty &&
-              data.containsKey('dinnerTime') &&
-              data['dinnerTime'] != null &&
-              data['dinnerTime'].toString().isNotEmpty;
+bool dataComplete = data.containsKey('breakfastTime') &&
+    data['breakfastTime'] != null &&
+    data['breakfastTime'].toString().isNotEmpty &&
+    data.containsKey('lunchTime') &&
+    data['lunchTime'] != null &&
+    data['lunchTime'].toString().isNotEmpty &&
+    data.containsKey('dinnerTime') &&
+    data['dinnerTime'] != null &&
+    data['dinnerTime'].toString().isNotEmpty &&
+    data.containsKey('medicalCondition');
 
           if (mounted) {
             // ตรวจสอบอีกครั้งก่อนเรียก setState
@@ -133,35 +134,34 @@ Future<void> _loadShowMealPlanDisplay() async {
 Future<void> _navigateToEditPage() async {
   if (!mounted) return;
 
-  print("📌 Navigating to EditUserDataPage...");
-  
-  try {
-    final result = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => EditUserDataPage(
-          breakfastTime: userData?['breakfastTime'] ?? '',
-          lunchTime: userData?['lunchTime'] ?? '',
-          dinnerTime: userData?['dinnerTime'] ?? '',
-          medicalCondition: userData?['medicalCondition'] ?? 'ไม่มีโรคประจำตัว',
-        ),
+  final result = await Navigator.of(context).push<bool>(
+    MaterialPageRoute<bool>(
+      builder: (context) => EditUserDataPage(
+        breakfastTime: userData?['breakfastTime'] ?? '',
+        lunchTime: userData?['lunchTime'] ?? '',
+        dinnerTime: userData?['dinnerTime'] ?? '',
+        medicalCondition: userData?['medicalCondition'] ?? 'ไม่มีโรคประจำตัว',
+        medicationData: userData?['medicationData'] ?? {
+          'hasMedication': false,
+          'beforeMeal': false,
+          'afterMeal': false,
+          'beforeMinutes': 30,
+          'afterMinutes': 30,
+        },
       ),
-    );
+    ),
+  );
 
-    if (!mounted) return;
-    
-    // โหลดข้อมูลใหม่หลังจากกลับมาจากหน้าแก้ไข
-    await _loadUserData();
-    
+  if (result == true) {
+    await _loadUserData(); // โหลดข้อมูลใหม่
     if (mounted) {
       setState(() {
-        _showMealPlanDisplay = false;
+        _showMealPlanDisplay = false; // รีเซ็ตสถานะการแสดงแผนอาหาร
       });
     }
-    await _saveShowMealPlanDisplay(false);
-  } catch (e) {
-    print("❌ Error navigating to EditUserDataPage: $e");
   }
 }
+
   // ฟังก์ชันสลับไปยังหน้าวางแผนเมนูอาหาร
   void _showMealPlanner() {
     // ตรวจสอบว่ามีข้อมูลครบถ้วนก่อนจะแสดงหน้าวางแผนเมนู
@@ -195,6 +195,7 @@ Future<void> _navigateToEditPage() async {
     super.dispose();
   }
 
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
@@ -315,6 +316,8 @@ Future<void> _navigateToEditPage() async {
     String lunchTime = userData!['lunchTime'] ?? 'ไม่มีข้อมูล';
     String dinnerTime = userData!['dinnerTime'] ?? 'ไม่มีข้อมูล';
     String medicalCondition = userData!['medicalCondition'] ?? 'ไม่มีข้อมูล';
+    String medicationTime = userData!['medicationTime'] ?? 'ไม่มีข้อมูล';
+
 
     return SingleChildScrollView(
       child: Padding(
@@ -428,61 +431,82 @@ Future<void> _navigateToEditPage() async {
 
             // ตารางโรคประจำตัว
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Card(
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: [
-                    // หัวตาราง
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade100,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(12),
-                          topRight: Radius.circular(12),
-                        ),
-                      ),
-                      padding: const EdgeInsets.all(14),
-                      child: const Text(
-                        "โรคประจำตัว",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    // ข้อมูลโรคประจำตัว
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: const BoxDecoration(
-                        borderRadius: BorderRadius.only(
-                          bottomLeft: Radius.circular(12),
-                          bottomRight: Radius.circular(12),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(Icons.health_and_safety,
-                              color: Colors.red, size: 22),
-                          const SizedBox(width: 8),
-                          Text(
-                            medicalCondition,
-                            style: const TextStyle(fontSize: 16),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+  padding: const EdgeInsets.symmetric(horizontal: 20),
+  child: Card(
+    elevation: 3,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      children: [
+        // หัวตาราง
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.blue.shade100,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(12),
+              topRight: Radius.circular(12),
             ),
+          ),
+          padding: const EdgeInsets.all(14),
+          child: const Text(
+            "ข้อมูลสุขภาพ",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
+        // ข้อมูลโรคประจำตัว
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: Color.fromARGB(255, 213, 210, 210)),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.health_and_safety,
+                  color: Colors.red, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                medicalCondition,
+                style: const TextStyle(fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+        // เพิ่มข้อมูลเวลาทานยา
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(
+            borderRadius: BorderRadius.only(
+              bottomLeft: Radius.circular(12),
+              bottomRight: Radius.circular(12),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.medication,
+                  color: Colors.green, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                medicationTime,
+                style: const TextStyle(fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  ),
+),
 
             const SizedBox(height: 36),
 

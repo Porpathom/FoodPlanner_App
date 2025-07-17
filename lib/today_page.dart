@@ -6,6 +6,9 @@ import 'package:intl/intl.dart';
 import 'meal_selection_page.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter/services.dart';
+import 'notification_service.dart';
+import 'dart:async'; // สำหรับ StreamSubscription
+import 'package:cached_network_image/cached_network_image.dart';
 
 class TodayPage extends StatefulWidget {
   @override
@@ -23,15 +26,71 @@ class _TodayPageState extends State<TodayPage> {
   String? currentMealPlanId;
   int? todayDayIndex;
 
+  StreamSubscription<NotificationEvent>? _notificationSubscription;
+  StreamSubscription<DocumentSnapshot>? _firestoreSubscription;
+
+  // เพิ่มตัวแปรเพื่อป้องกันการอัปเดต state หลายครั้งพร้อมกัน
+  bool _isUpdating = false;
+
+  // เพิ่มตัวแปรเพื่อติดตาม notification events ที่ได้รับแล้ว
+  Set<String> _processedNotificationEvents = {};
+
+// ใน _TodayPageState
   @override
   void initState() {
     super.initState();
-    // Initialize Thai locale before loading data
     initializeDateFormatting('th_TH', null).then((_) {
       _loadTodayMealPlan();
     });
-    // โหลดรูปภาพแนะนำตามโรค
     _loadHealthConditionImage();
+
+    // ย้ายการตั้งค่า notification listener มาไว้ที่นี่
+    _notificationSubscription = NotificationService()
+        .notificationStream
+        .listen(_handleNotificationEvent);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadTodayMealPlan();
+      await NotificationService().init();
+    });
+  }
+
+  void _handleNotificationEvent(NotificationEvent event) {
+    final eventKey = event.eventId;
+
+    if (_processedNotificationEvents.contains(eventKey)) {
+      return;
+    }
+
+    _processedNotificationEvents.add(eventKey);
+
+    if (event.type == 'meal_completed') {
+      if (mounted) {
+        setState(() {
+          if (todayMealPlan != null && todayMealPlan!['completed'] != null) {
+            todayMealPlan!['completed'][event.mealType] = true;
+          }
+        });
+      }
+    }
+
+    // นำทางไปหน้า TodayPage ถ้ายังไม่อยู่ในหน้านั้น
+    if (ModalRoute.of(context)?.settings.name != '/today') {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/today',
+          (route) => false,
+        );
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _notificationSubscription?.cancel();
+    _firestoreSubscription?.cancel();
+    super.dispose();
   }
 
   void _loadHealthConditionImage() {
@@ -62,14 +121,14 @@ class _TodayPageState extends State<TodayPage> {
   }
 
   Future<void> _loadTodayMealPlan() async {
-    setState(() {
-      isLoading = true;
-    });
+    if (_isUpdating) return; // ป้องกันการโหลดซ้ำ
+
+    setState(() => isLoading = true);
+    _isUpdating = true;
 
     try {
       User? user = _auth.currentUser;
       if (user != null) {
-        // ดึงแผนอาหารที่เป็นปัจจุบันของผู้ใช้
         QuerySnapshot activePlanSnapshot = await _firestore
             .collection('mealPlans')
             .where('userId', isEqualTo: user.uid)
@@ -81,42 +140,71 @@ class _TodayPageState extends State<TodayPage> {
         if (activePlanSnapshot.docs.isNotEmpty) {
           DocumentSnapshot planDoc = activePlanSnapshot.docs[0];
           currentMealPlanId = planDoc.id;
-          Map<String, dynamic> planData =
-              planDoc.data() as Map<String, dynamic>;
 
-          // บันทึกสภาวะสุขภาพ
-          healthCondition = planData['healthCondition'] ?? 'healthy';
-          _loadHealthConditionImage(); // เพิ่มบรรทัดนี้
+          // โหลดข้อมูลทันทีโดยไม่รอ listener
+          await _updateTodayMealPlanFromSnapshot(planDoc);
+          _setupFirestoreListener();
+        }
+      }
+    } catch (e) {
+      debugPrint("Error loading meal plan: $e");
+    } finally {
+      _isUpdating = false;
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
 
-          // ดึงข้อมูลแผนรายวัน
-          if (planData.containsKey('dailyPlans')) {
-            List<dynamic> dailyPlans = planData['dailyPlans'] as List<dynamic>;
+  Future<void> _updateTodayMealPlanFromSnapshot(
+      DocumentSnapshot planDoc) async {
+    if (!mounted) return;
 
-            // หาวันที่ปัจจุบัน
-            DateTime now = DateTime.now();
-            todayDayIndex = null; // รีเซ็ตค่า
+    try {
+      Map<String, dynamic> planData = planDoc.data() as Map<String, dynamic>;
 
-            // หาแผนของวันนี้
-            for (int i = 0; i < dailyPlans.length; i++) {
-              var dayPlan = dailyPlans[i];
-              Timestamp planDate = dayPlan['date'];
-              if (DateUtils.isSameDay(planDate.toDate(), now)) {
-                setState(() {
-                  todayMealPlan = dayPlan as Map<String, dynamic>;
-                  todayDayIndex = i;
-                });
-                print("พบแผนอาหารของวันนี้ ที่ index: $i"); // เพิ่ม log
-                break;
-              }
-            }
+      // ตรวจสอบและอัปเดต health condition
+      String newHealthCondition = planData['healthCondition'] ?? 'healthy';
+      if (newHealthCondition != healthCondition) {
+        setState(() => healthCondition = newHealthCondition);
+        _loadHealthConditionImage();
+      }
+
+      if (planData.containsKey('dailyPlans')) {
+        List<dynamic> dailyPlans = planData['dailyPlans'];
+        DateTime today = DateTime.now();
+
+        for (int i = 0; i < dailyPlans.length; i++) {
+          var dayPlan = dailyPlans[i];
+          if (dayPlan['date'] != null &&
+              DateUtils.isSameDay(dayPlan['date'].toDate(), today)) {
+            setState(() {
+              todayMealPlan = Map<String, dynamic>.from(dayPlan);
+              todayDayIndex = i;
+            });
+            break;
           }
         }
       }
     } catch (e) {
-      print("Error loading today's meal plan: $e");
-    } finally {
-      setState(() {
-        isLoading = false;
+      debugPrint("Error updating plan: $e");
+    }
+  }
+
+  // เพิ่มฟังก์ชันตั้งค่า Firestore listener
+  void _setupFirestoreListener() {
+    if (currentMealPlanId != null) {
+      _firestoreSubscription?.cancel(); // ยกเลิกตัวเก่าก่อน
+
+      _firestoreSubscription = _firestore
+          .collection('mealPlans')
+          .doc(currentMealPlanId)
+          .snapshots()
+          .listen((DocumentSnapshot snapshot) {
+        if (snapshot.exists && mounted) {
+          print("🔄 Firestore data changed, updating...");
+          _updateTodayMealPlanFromSnapshot(snapshot);
+        }
+      }, onError: (error) {
+        print("Firestore listener error: $error");
       });
     }
   }
@@ -130,52 +218,48 @@ class _TodayPageState extends State<TodayPage> {
 
       print("กำลังอัปเดตเมนู $mealType ที่ index: $todayDayIndex");
 
-      // สร้างข้อมูลเมนูใหม่ที่รวม imageUrl และ instructions
+      // สร้างข้อมูลเมนูใหม่
       Map<String, dynamic> mealData = {
         'menuId': newMenu['id'],
         'name': newMenu['name'],
         'description': newMenu['description'] ?? '',
         'nutritionalInfo': newMenu['nutritionalInfo'] ?? {},
         'ingredients': newMenu['ingredients'] ?? [],
-        'imageUrl': newMenu['imageUrl'] ?? '', // เพิ่ม imageUrl
-        'instructions': newMenu['instructions'] ?? [], // เพิ่ม instructions
+        'imageUrl': newMenu['imageUrl'] ?? '',
+        'instructions': newMenu['instructions'] ?? [],
       };
 
-      // อัปเดตข้อมูลในตัวแปร state ก่อน
-      setState(() {
-        todayMealPlan!['meals'][mealType] = mealData;
-      });
-
-      // ดึงข้อมูลแผนอาหารปัจจุบันจาก Firestore ก่อน
+      // ดึงข้อมูลแผนอาหารปัจจุบันจาก Firestore
       DocumentSnapshot docSnapshot =
           await _firestore.collection('mealPlans').doc(currentMealPlanId).get();
       if (!docSnapshot.exists) {
         throw Exception('ไม่พบแผนอาหาร');
       }
 
-      // แก้ไขเฉพาะส่วนที่ต้องการ
+      // อัปเดตข้อมูลใน Firestore โดยตรง
       Map<String, dynamic> currentData =
           docSnapshot.data() as Map<String, dynamic>;
       List<dynamic> updatedDailyPlans = List.from(currentData['dailyPlans']);
       updatedDailyPlans[todayDayIndex!]['meals'][mealType] = mealData;
 
-      // อัปเดตแผนอาหารทั้งหมด
       await _firestore
           .collection('mealPlans')
           .doc(currentMealPlanId)
           .update({'dailyPlans': updatedDailyPlans});
 
       // แจ้งเตือนผู้ใช้
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('เปลี่ยนเมนู${_getMealTypeName(mealType)}สำเร็จ'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('เปลี่ยนเมนู${_getMealTypeName(mealType)}สำเร็จ'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+
+      // หมายเหตุ: ไม่ต้องอัปเดต state ด้วยตนเอง เพราะ Firestore listener จะทำให้
     } catch (e) {
       print("Error updating meal menu: $e");
-
-      // ตรวจสอบ mounted ก่อนใช้ context
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -184,70 +268,150 @@ class _TodayPageState extends State<TodayPage> {
           ),
         );
       }
-
       // โหลดข้อมูลใหม่ในกรณีเกิดข้อผิดพลาด
-      _loadTodayMealPlan();
+      await _loadTodayMealPlan();
     }
   }
 
-  // เฉพาะอัปเดต UI ไม่บันทึกลง Firestore
-  Future<void> _updateMealCompletion(String mealType, bool isCompleted) async {
-    try {
-      if (currentMealPlanId == null || todayDayIndex == null) {
-        throw Exception('ไม่พบ ID ของแผนอาหารหรือดัชนีของวัน');
+  Future<void> _forceRefreshData() async {
+    if (currentMealPlanId != null) {
+      try {
+        DocumentSnapshot docSnapshot = await _firestore
+            .collection('mealPlans')
+            .doc(currentMealPlanId)
+            .get();
+        if (docSnapshot.exists) {
+          await _updateTodayMealPlanFromSnapshot(docSnapshot);
+        }
+      } catch (e) {
+        print("Error force refreshing data: $e");
       }
+    }
+  }
 
-      print("กำลังอัปเดตสถานะการทานอาหาร $mealType เป็น: $isCompleted");
+  // ฟังก์ชันหลักสำหรับการอัปเดต meal completion
+// แทนที่ฟังก์ชัน _updateMealCompletion เดิมด้วยโค้ดนี้
+Future<void> _updateMealCompletion(String mealType, bool isCompleted) async {
+  // ป้องกันการทำงานซ้ำ
+  if (_isUpdating) {
+    print("⚠️ Already updating, skipping...");
+    return;
+  }
 
-      // อัปเดตข้อมูลในตัวแปร state ก่อน
+  try {
+    _isUpdating = true;
+    print("=== DEBUG Meal Completion Update ===");
+    print("Meal Type: $mealType");
+    print("Is Completed: $isCompleted");
+    print("todayMealPlan: ${todayMealPlan != null}");
+    print("currentMealPlanId: $currentMealPlanId");
+    print("todayDayIndex: $todayDayIndex");
+    print("====================================");
+
+    if (todayMealPlan == null ||
+        currentMealPlanId == null ||
+        todayDayIndex == null) {
+      String debugInfo = "Debug: ";
+      debugInfo += "todayMealPlan=${todayMealPlan != null}, ";
+      debugInfo += "currentMealPlanId=$currentMealPlanId, ";
+      debugInfo += "todayDayIndex=$todayDayIndex";
+
+      throw Exception('ไม่พบข้อมูลแผนอาหาร - $debugInfo');
+    }
+
+    // ดึงข้อมูลแผนอาหารปัจจุบันจาก Firestore
+    DocumentSnapshot docSnapshot = await _firestore
+        .collection('mealPlans')
+        .doc(currentMealPlanId)
+        .get();
+    
+    if (!docSnapshot.exists) {
+      throw Exception('ไม่พบแผนอาหาร');
+    }
+
+    // อัปเดตข้อมูล completion status
+    Map<String, dynamic> currentData = docSnapshot.data() as Map<String, dynamic>;
+    List<dynamic> updatedDailyPlans = List.from(currentData['dailyPlans']);
+    
+    // อัปเดต completed status
+    if (updatedDailyPlans[todayDayIndex!]['completed'] == null) {
+      updatedDailyPlans[todayDayIndex!]['completed'] = {};
+    }
+    updatedDailyPlans[todayDayIndex!]['completed'][mealType] = isCompleted;
+
+    // บันทึกข้อมูลกลับไปยัง Firestore
+    await _firestore
+        .collection('mealPlans')
+        .doc(currentMealPlanId)
+        .update({'dailyPlans': updatedDailyPlans});
+
+    print("✅ Successfully updated meal completion status");
+
+    // แสดงข้อความแจ้งเตือน
+    if (mounted) {
+      HapticFeedback.lightImpact(); // การสั่นเบา ๆ
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            isCompleted 
+              ? 'บันทึกการทาน${_getMealTypeName(mealType)}เรียบร้อยแล้ว'
+              : 'ยกเลิกการทาน${_getMealTypeName(mealType)}แล้ว',
+          ),
+          duration: const Duration(seconds: 2),
+          backgroundColor: isCompleted ? Colors.green : Colors.orange,
+        ),
+      );
+    }
+
+    // อัปเดต state ใน UI ทันที (ไม่ต้องรอ Firestore listener)
+    if (mounted) {
       setState(() {
         todayMealPlan!['completed'][mealType] = isCompleted;
       });
+    }
 
-      // ดึงข้อมูลแผนอาหารปัจจุบันจาก Firestore ก่อน
-      DocumentSnapshot docSnapshot =
-          await _firestore.collection('mealPlans').doc(currentMealPlanId).get();
-      if (!docSnapshot.exists) {
-        throw Exception('ไม่พบแผนอาหาร');
-      }
+  } catch (e) {
+    debugPrint("❌ Error updating meal completion: $e");
 
-      // แก้ไขเฉพาะส่วนที่ต้องการ
-      Map<String, dynamic> currentData =
-          docSnapshot.data() as Map<String, dynamic>;
-      List<dynamic> updatedDailyPlans = List.from(currentData['dailyPlans']);
-      updatedDailyPlans[todayDayIndex!]['completed'][mealType] = isCompleted;
-
-      // อัปเดตแผนอาหารทั้งหมด
-      await _firestore
-          .collection('mealPlans')
-          .doc(currentMealPlanId)
-          .update({'dailyPlans': updatedDailyPlans});
-
-      // แจ้งเตือนผู้ใช้
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isCompleted
-              ? 'ทาน${_getMealTypeName(mealType)}สำเร็จ'
-              : 'ยกเลิกการทาน${_getMealTypeName(mealType)}'),
-          duration: const Duration(seconds: 2),
+          content: Text('เกิดข้อผิดพลาด: ${e.toString()}'),
+          duration: const Duration(seconds: 3),
+          backgroundColor: Colors.red,
         ),
       );
-    } catch (e) {
-      print("Error updating meal completion: $e");
-
-      // ตรวจสอบ mounted ก่อนใช้ context
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('เกิดข้อผิดพลาดในการบันทึกสถานะ: ${e.toString()}'),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-
-      // โหลดข้อมูลใหม่ในกรณีเกิดข้อผิดพลาด
-      _loadTodayMealPlan();
     }
+
+    // รีเฟรชข้อมูลจาก Firestore
+    await Future.delayed(Duration(milliseconds: 1000));
+    await _forceRefreshData();
+  } finally {
+    _isUpdating = false;
+  }
+}
+
+  // เพิ่มฟังก์ชันช่วยเหลือในการแปล mealType เป็นชื่อภาษาไทย
+  String _getMealTypeName(String mealType) {
+    switch (mealType) {
+      case 'breakfast':
+        return 'เช้า';
+      case 'lunch':
+        return 'กลางวัน';
+      case 'dinner':
+        return 'เย็น';
+      default:
+        return mealType;
+    }
+  }
+
+  // เพิ่มฟังก์ชันสำหรับรีเซ็ต processed events เมื่อเปลี่ยนหน้า
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // ล้าง processed events เมื่อกลับมาที่หน้านี้
+    _processedNotificationEvents.clear();
   }
 
   // เปิดหน้าเปลี่ยนเมนูอาหาร
@@ -333,16 +497,18 @@ class _TodayPageState extends State<TodayPage> {
 
               // แสดงรูปภาพอาหาร
               if (imageUrl.isNotEmpty)
-                Container(
+                CachedNetworkImage(
+                  imageUrl: imageUrl,
                   width: double.infinity,
                   height: 200,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    image: DecorationImage(
-                      image: NetworkImage(imageUrl),
-                      fit: BoxFit.cover,
-                    ),
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    color: Colors.grey.shade200,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.grey.shade200,
+                    child: Icon(Icons.error),
                   ),
                 ),
 
@@ -411,7 +577,7 @@ class _TodayPageState extends State<TodayPage> {
                       ],
                     ),
                   );
-                }).toList(),
+                }),
               ],
 
               // เพิ่มวิธีทำ
@@ -459,7 +625,7 @@ class _TodayPageState extends State<TodayPage> {
                       ],
                     ),
                   );
-                }).toList(),
+                }),
               ],
 
               const SizedBox(height: 20),
@@ -649,18 +815,6 @@ class _TodayPageState extends State<TodayPage> {
   }
 
   // แปลงชื่อมื้อเป็นภาษาไทย
-  String _getMealTypeName(String mealType) {
-    switch (mealType) {
-      case 'breakfast':
-        return 'มื้อเช้า';
-      case 'lunch':
-        return 'มื้อเที่ยง';
-      case 'dinner':
-        return 'มื้อเย็น';
-      default:
-        return 'อาหาร';
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -722,7 +876,7 @@ class _TodayPageState extends State<TodayPage> {
           // ส่วนหัวและวันที่ (โค้ดเดิม)
           Row(
             children: [
-              Icon(Icons.today, color: Colors.blue, size: 20),
+              const Icon(Icons.today, color: Colors.blue, size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Column(
@@ -766,19 +920,19 @@ class _TodayPageState extends State<TodayPage> {
 
           // เพิ่มส่วนแสดงรูปภาพแนะนำด้านล่างส่วนหัว
           // แสดงรูปภาพแนะนำด้านสุขภาพ
-if (healthConditionImage != null)
-  Container(
-    width: double.infinity,
-    height: MediaQuery.of(context).size.width * (9 / 16), // 16:9
-    margin: const EdgeInsets.only(bottom: 16),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(12),
-      image: DecorationImage(
-        image: AssetImage(healthConditionImage!),
-        fit: BoxFit.cover,
-      ),
-    ),
-  ),
+          if (healthConditionImage != null)
+            Container(
+              width: double.infinity,
+              height: MediaQuery.of(context).size.width * (9 / 16), // 16:9
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                image: DecorationImage(
+                  image: AssetImage(healthConditionImage!),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
 
           const SizedBox(height: 8),
 
@@ -873,17 +1027,21 @@ if (healthConditionImage != null)
 
             const SizedBox(height: 24),
 
-            // แสดงรูปภาพของเมนูอาหาร (หากมี)
             if (imageUrl.isNotEmpty)
-              Container(
-                width: double.infinity,
-                height: 150,
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  image: DecorationImage(
-                    image: NetworkImage(imageUrl),
-                    fit: BoxFit.cover,
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  width: double.infinity,
+                  height: 150,
+                  fit: BoxFit.cover,
+                  placeholder: (context, url) => Container(
+                    color: Colors.grey.shade200,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.grey.shade200,
+                    child: Icon(Icons.error),
                   ),
                 ),
               ),

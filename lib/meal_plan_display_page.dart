@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'meal_selection_page.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+
 
 class MealPlanDisplayPage extends StatefulWidget {
   final bool showAppBar;
@@ -59,6 +61,7 @@ class _MealPlanDisplayPageState extends State<MealPlanDisplayPage> {
   ];
 
 // เพิ่มใน initState
+  @override
   void initState() {
     super.initState();
     currentHealthCondition = widget.healthCondition;
@@ -659,7 +662,7 @@ class _MealPlanDisplayPageState extends State<MealPlanDisplayPage> {
       print("สร้างแผนอาหารใหม่สำเร็จ ID: ${newPlanRef.id}");
     } catch (e) {
       print("เกิดข้อผิดพลาดในการสร้างแผนอาหาร: $e");
-      throw e;
+      rethrow;
     }
   }
 
@@ -955,27 +958,31 @@ Widget _buildMealRow({
         ),
 
         // รูปภาพเมนู (ถ้ามี)
-        if (imageUrl.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.network(
-                imageUrl,
-                width: 40, // ลดขนาดลง
-                height: 40,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  return Container(
-                    width: 40,
-                    height: 40,
-                    color: Colors.grey.shade200,
-                    child: const Icon(Icons.fastfood, size: 20),
-                  );
-                },
-              ),
-            ),
-          ),
+// ในส่วน _buildMealRow
+if (imageUrl.isNotEmpty)
+  Padding(
+    padding: const EdgeInsets.only(right: 8),
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: CachedNetworkImage(
+        imageUrl: imageUrl,
+        width: 40,
+        height: 40,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(
+          width: 40,
+          height: 40,
+          color: Colors.grey.shade200,
+        ),
+        errorWidget: (context, url, error) => Container(
+          width: 40,
+          height: 40,
+          color: Colors.grey.shade200,
+          child: Icon(Icons.fastfood, size: 20),
+        ),
+      ),
+    ),
+  ),
 
         // ไอคอนมื้ออาหาร (ย้ายมาอยู่ด้านขวา)
         Container(
@@ -1112,45 +1119,32 @@ Widget _buildMealRow({
 
               const SizedBox(height: 16),
 
-              // รูปภาพอาหาร (ถ้ามี)
-              if (imageUrl.isNotEmpty) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    imageUrl,
-                    width: double.infinity,
-                    height: 180,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: double.infinity,
-                        height: 180,
-                        color: Colors.grey.shade200,
-                        child: const Center(
-                          child: Text('ไม่สามารถโหลดรูปภาพได้'),
-                        ),
-                      );
-                    },
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Container(
-                        width: double.infinity,
-                        height: 180,
-                        color: Colors.grey.shade200,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
-                                : null,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
+if (imageUrl.isNotEmpty) ...[
+  ClipRRect(
+    borderRadius: BorderRadius.circular(12),
+    child: CachedNetworkImage(
+      imageUrl: imageUrl,
+      width: double.infinity,
+      height: 180,
+      fit: BoxFit.cover,
+      placeholder: (context, url) => Container(
+        width: double.infinity,
+        height: 180,
+        color: Colors.grey.shade200,
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      errorWidget: (context, url, error) => Container(
+        width: double.infinity,
+        height: 180,
+        color: Colors.grey.shade200,
+        child: Center(
+          child: Text('ไม่สามารถโหลดรูปภาพได้'),
+        ),
+      ),
+    ),
+  ),
+  const SizedBox(height: 16),
+],
 
               // คำอธิบาย
               const Text(
@@ -1198,7 +1192,7 @@ Widget _buildMealRow({
                       ],
                     ),
                   );
-                }).toList(),
+                }),
               ],
 
               const SizedBox(height: 20),

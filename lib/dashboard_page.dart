@@ -19,8 +19,8 @@ class _DashboardPageState extends State<DashboardPage> {
   static final List<Widget> _pages = [
     TodayPage(),
     MenuPlanPage(),
-    RawMaterialsPage(),
-    MealHistoryReportPage(), // เพิ่มหน้ารายงาน
+    const RawMaterialsPage(),
+    const MealHistoryReportPage(), // เพิ่มหน้ารายงาน
     ProfilePage(),
   ];
 

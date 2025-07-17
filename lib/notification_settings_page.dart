@@ -5,6 +5,8 @@ import 'notification_service.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationSettingsPage extends StatefulWidget {
+  const NotificationSettingsPage({super.key});
+
   @override
   _NotificationSettingsPageState createState() => _NotificationSettingsPageState();
 }
@@ -92,7 +94,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
       _updateNotifications();
       
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('บันทึกการตั้งค่าการแจ้งเตือนเรียบร้อยแล้ว'),
           backgroundColor: Colors.green,
         ),
@@ -100,7 +102,7 @@ class _NotificationSettingsPageState extends State<NotificationSettingsPage> {
     } catch (e) {
       print("Error saving notification settings: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('เกิดข้อผิดพลาดในการบันทึกการตั้งค่า'),
           backgroundColor: Colors.red,
         ),
@@ -128,12 +130,12 @@ Future<void> _updateNotifications() async {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text('ต้องการสิทธิ์การแจ้งเตือน'),
-          content: Text('แอปต้องการสิทธิ์ในการแสดงการแจ้งเตือน กรุณาเปิดสิทธิ์ในตั้งค่าการแจ้งเตือนของอุปกรณ์'),
+          title: const Text('ต้องการสิทธิ์การแจ้งเตือน'),
+          content: const Text('แอปต้องการสิทธิ์ในการแสดงการแจ้งเตือน กรุณาเปิดสิทธิ์ในตั้งค่าการแจ้งเตือนของอุปกรณ์'),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: Text('ปิด'),
+              child: const Text('ปิด'),
             ),
             TextButton(
               onPressed: () {
@@ -144,7 +146,7 @@ Future<void> _updateNotifications() async {
                         AndroidFlutterLocalNotificationsPlugin>()
                     ;
               },
-              child: Text('ไปที่ตั้งค่า'),
+              child: const Text('ไปที่ตั้งค่า'),
             ),
           ],
         ),
@@ -159,41 +161,11 @@ Future<void> _updateNotifications() async {
   // ถ้าการแจ้งเตือนไม่เปิดใช้งาน ไม่ต้องตั้งค่าใหม่
   if (!notificationsEnabled) return;
   
-  // ตั้งค่าการแจ้งเตือนตามการตั้งค่าของผู้ใช้
-  if (breakfastNotificationEnabled && breakfastTime.isNotEmpty) {
-    await notificationService.scheduleMealNotification(
-      id: 1,
-      title: 'เตือนมื้อเช้า',
-      body: 'ถึงเวลาทานอาหารเช้าแล้ว เราได้เตรียมรายการอาหารไว้ให้คุณแล้ว',
-      time: breakfastTime,
-      daily: true,
-    );
-  }
-  
-  if (lunchNotificationEnabled && lunchTime.isNotEmpty) {
-    await notificationService.scheduleMealNotification(
-      id: 2,
-      title: 'เตือนมื้อกลางวัน',
-      body: 'ถึงเวลาทานอาหารกลางวันแล้ว เราได้เตรียมรายการอาหารไว้ให้คุณแล้ว',
-      time: lunchTime,
-      daily: true,
-    );
-  }
-  
-  if (dinnerNotificationEnabled && dinnerTime.isNotEmpty) {
-    await notificationService.scheduleMealNotification(
-      id: 3,
-      title: 'เตือนมื้อเย็น',
-      body: 'ถึงเวลาทานอาหารเย็นแล้ว เราได้เตรียมรายการอาหารไว้ให้คุณแล้ว',
-      time: dinnerTime,
-      daily: true,
-    );
-  }
 
   // แจ้งผู้ใช้เมื่อตั้งค่าสำเร็จ
   if (mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      const SnackBar(
         content: Text('ตั้งค่าการแจ้งเตือนเรียบร้อยแล้ว'),
         backgroundColor: Colors.green,
       ),
@@ -205,14 +177,14 @@ Future<void> _updateNotifications() async {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('การตั้งค่าการแจ้งเตือน'),
+        title: const Text('การตั้งค่าการแจ้งเตือน'),
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
       ),
       body: isLoading 
-        ? Center(child: CircularProgressIndicator())
+        ? const Center(child: CircularProgressIndicator())
         : SingleChildScrollView(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -222,12 +194,12 @@ Future<void> _updateNotifications() async {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Padding(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SwitchListTile(
-                          title: Text(
+                          title: const Text(
                             'เปิดใช้งานการแจ้งเตือนทั้งหมด',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
@@ -240,14 +212,14 @@ Future<void> _updateNotifications() async {
                               notificationsEnabled = value;
                             });
                           },
-                          secondary: Icon(
+                          secondary: const Icon(
                             Icons.notifications,
                             color: Colors.blue,
                           ),
                         ),
-                        Divider(),
+                        const Divider(),
                         Padding(
-                          padding: EdgeInsets.only(left: 16, top: 8, bottom: 8),
+                          padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
                           child: Text(
                             'ตั้งค่าการแจ้งเตือนแต่ละมื้อ',
                             style: TextStyle(
@@ -257,7 +229,7 @@ Future<void> _updateNotifications() async {
                           ),
                         ),
                         SwitchListTile(
-                          title: Text('การแจ้งเตือนมื้อเช้า'),
+                          title: const Text('การแจ้งเตือนมื้อเช้า'),
                           subtitle: Text(breakfastTime.isEmpty ? 'ยังไม่ได้ตั้งเวลา' : breakfastTime),
                           value: breakfastNotificationEnabled && notificationsEnabled,
                           onChanged: notificationsEnabled
@@ -267,13 +239,13 @@ Future<void> _updateNotifications() async {
                                 });
                               }
                             : null,
-                          secondary: Icon(
+                          secondary: const Icon(
                             Icons.wb_sunny_outlined,
                             color: Colors.orange,
                           ),
                         ),
                         SwitchListTile(
-                          title: Text('การแจ้งเตือนมื้อกลางวัน'),
+                          title: const Text('การแจ้งเตือนมื้อกลางวัน'),
                           subtitle: Text(lunchTime.isEmpty ? 'ยังไม่ได้ตั้งเวลา' : lunchTime),
                           value: lunchNotificationEnabled && notificationsEnabled,
                           onChanged: notificationsEnabled
@@ -289,7 +261,7 @@ Future<void> _updateNotifications() async {
                           ),
                         ),
                         SwitchListTile(
-                          title: Text('การแจ้งเตือนมื้อเย็น'),
+                          title: const Text('การแจ้งเตือนมื้อเย็น'),
                           subtitle: Text(dinnerTime.isEmpty ? 'ยังไม่ได้ตั้งเวลา' : dinnerTime),
                           value: dinnerNotificationEnabled && notificationsEnabled,
                           onChanged: notificationsEnabled
@@ -299,7 +271,7 @@ Future<void> _updateNotifications() async {
                                 });
                               }
                             : null,
-                          secondary: Icon(
+                          secondary: const Icon(
                             Icons.nightlight_round,
                             color: Colors.indigo,
                           ),
@@ -308,13 +280,13 @@ Future<void> _updateNotifications() async {
                     ),
                   ),
                 ),
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
                 Center(
                   child: ElevatedButton.icon(
-                    icon: Icon(Icons.save),
-                    label: Text('บันทึกการตั้งค่า'),
+                    icon: const Icon(Icons.save),
+                    label: const Text('บันทึกการตั้งค่า'),
                     style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
                       ),

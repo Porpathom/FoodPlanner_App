@@ -20,6 +20,7 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
         coreLibraryDesugaringEnabled true
+        
     }
 
     kotlinOptions {
@@ -42,10 +43,15 @@ android {
 }
 
 dependencies {
-    implementation platform("com.google.firebase:firebase-bom:32.7.0")  // ลดเวอร์ชันเพื่อความเสถียร
+    implementation platform("com.google.firebase:firebase-bom:32.7.0")
     
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
     implementation "com.google.firebase:firebase-analytics"
     implementation "com.google.firebase:firebase-auth"
     implementation "com.google.firebase:firebase-firestore"
+}
+
+// ✅ เพิ่มส่วนนี้ไว้ล่างสุดของไฟล์
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs << "-Xlint:unchecked"
 }

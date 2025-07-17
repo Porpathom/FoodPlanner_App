@@ -5,6 +5,8 @@ import 'home_page.dart';
 import 'edit_user_data_page.dart'; // นำเข้าหน้าแก้ไขข้อมูล
 
 class ProfilePage extends StatefulWidget {
+  const ProfilePage({super.key});
+
   @override
   _ProfilePageState createState() => _ProfilePageState();
 }
@@ -58,6 +60,22 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+String _formatMedicationTime(Map<String, dynamic>? medicationData) {
+  if (medicationData == null || medicationData['hasMedication'] == false) {
+    return 'ไม่มีการทานยา';
+  }
+
+  List<String> times = [];
+  if (medicationData['beforeMeal'] == true) {
+    times.add('ก่อนอาหาร ${medicationData['beforeMinutes']} นาที');
+  }
+  if (medicationData['afterMeal'] == true) {
+    times.add('หลังอาหาร ${medicationData['afterMinutes']} นาที');
+  }
+
+  return times.isEmpty ? 'ไม่มีการทานยา' : times.join('\n');
+}
+
   // ฟังก์ชันการออกจากระบบ
   void _signOut(BuildContext context) async {
     try {
@@ -66,15 +84,15 @@ class _ProfilePageState extends State<ProfilePage> {
             context: context,
             builder: (BuildContext context) {
               return AlertDialog(
-                title: Text("ยืนยันการออกจากระบบ"),
-                content: Text("คุณต้องการออกจากระบบใช่หรือไม่?"),
+                title: const Text("ยืนยันการออกจากระบบ"),
+                content: const Text("คุณต้องการออกจากระบบใช่หรือไม่?"),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(false),
-                    child: Text("ยกเลิก"),
+                    child: const Text("ยกเลิก"),
                   ),
                   ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(true),
@@ -82,7 +100,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       backgroundColor: Colors.red,
                       foregroundColor: Colors.white,
                     ),
-                    child: Text("ออกจากระบบ"),
+                    child: const Text("ออกจากระบบ"),
                   ),
                 ],
               );
@@ -96,7 +114,7 @@ class _ProfilePageState extends State<ProfilePage> {
           context: context,
           barrierDismissible: false,
           builder: (BuildContext context) {
-            return Center(child: CircularProgressIndicator());
+            return const Center(child: CircularProgressIndicator());
           },
         );
 
@@ -129,35 +147,35 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // ฟังก์ชันสำหรับการเปลี่ยนรหัสผ่าน
   void _changePassword(BuildContext context) async {
-    final _emailController = TextEditingController();
+    final emailController = TextEditingController();
 
     try {
       User? user = _auth.currentUser;
       if (user != null && user.email != null) {
-        _emailController.text = user.email!;
+        emailController.text = user.email!;
 
         // แสดงกล่องยืนยัน
         bool confirm = await showDialog(
               context: context,
               builder: (BuildContext context) {
                 return AlertDialog(
-                  title: Text("เปลี่ยนรหัสผ่าน"),
+                  title: const Text("เปลี่ยนรหัสผ่าน"),
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text("ระบบจะส่งอีเมลสำหรับรีเซ็ตรหัสผ่านไปยัง:"),
-                      SizedBox(height: 12),
+                      const Text("ระบบจะส่งอีเมลสำหรับรีเซ็ตรหัสผ่านไปยัง:"),
+                      const SizedBox(height: 12),
                       TextField(
-                        controller: _emailController,
-                        decoration: InputDecoration(
+                        controller: emailController,
+                        decoration: const InputDecoration(
                           border: OutlineInputBorder(),
                           labelText: "อีเมล",
                           prefixIcon: Icon(Icons.email),
                         ),
                         readOnly: true,
                       ),
-                      SizedBox(height: 12),
-                      Text("กรุณาตรวจสอบอีเมลของท่านหลังจากยืนยัน"),
+                      const SizedBox(height: 12),
+                      const Text("กรุณาตรวจสอบอีเมลของท่านหลังจากยืนยัน"),
                     ],
                   ),
                   shape: RoundedRectangleBorder(
@@ -166,7 +184,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(false),
-                      child: Text("ยกเลิก"),
+                      child: const Text("ยกเลิก"),
                     ),
                     ElevatedButton(
                       onPressed: () => Navigator.of(context).pop(true),
@@ -174,7 +192,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         backgroundColor: Colors.blue,
                         foregroundColor: Colors.white,
                       ),
-                      child: Text("ส่งอีเมลรีเซ็ต"),
+                      child: const Text("ส่งอีเมลรีเซ็ต"),
                     ),
                   ],
                 );
@@ -188,12 +206,12 @@ class _ProfilePageState extends State<ProfilePage> {
             context: context,
             barrierDismissible: false,
             builder: (BuildContext context) {
-              return Center(child: CircularProgressIndicator());
+              return const Center(child: CircularProgressIndicator());
             },
           );
 
           // ส่งอีเมลรีเซ็ตรหัสผ่าน
-          await _auth.sendPasswordResetEmail(email: _emailController.text);
+          await _auth.sendPasswordResetEmail(email: emailController.text);
 
           // ปิด loading
           Navigator.pop(context);
@@ -201,7 +219,7 @@ class _ProfilePageState extends State<ProfilePage> {
           // แสดงข้อความสำเร็จ
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
+              content: const Text(
                   'ส่งอีเมลรีเซ็ตรหัสผ่านเรียบร้อยแล้ว กรุณาตรวจสอบอีเมลของท่าน'),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
@@ -214,7 +232,7 @@ class _ProfilePageState extends State<ProfilePage> {
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('ไม่พบข้อมูลอีเมลผู้ใช้'),
+            content: const Text('ไม่พบข้อมูลอีเมลผู้ใช้'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
@@ -245,22 +263,22 @@ class _ProfilePageState extends State<ProfilePage> {
     required Color iconColor,
   }) {
     return Container(
-      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
       ),
       child: Row(
         children: [
           Icon(icon, color: iconColor, size: 22),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Text(
             mealName,
-            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
+            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
           ),
-          Spacer(),
+          const Spacer(),
           Text(
             mealTime,
-            style: TextStyle(fontSize: 16),
+            style: const TextStyle(fontSize: 16),
           ),
         ],
       ),
@@ -268,42 +286,48 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   // สร้าง widget แถวข้อมูลทั่วไป
-  Widget _buildInfoRow({
-    required String label,
-    required String value,
-    IconData? icon,
-    Color? iconColor,
-  }) {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-      ),
-      child: Row(
-        children: [
-          if (icon != null) ...[
-            Icon(icon, color: iconColor, size: 22),
-            SizedBox(width: 12),
-          ],
-          Text(
-            label,
-            style: TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
-          ),
-          Spacer(),
-          Text(
-            value,
-            style: TextStyle(fontSize: 16),
-          ),
+Widget _buildInfoRow({
+  required String label,
+  required String value,
+  IconData? icon,
+  Color? iconColor,
+}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+    decoration: BoxDecoration(
+      border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, color: iconColor, size: 22),
+          const SizedBox(width: 8), // ลดจาก 12 เป็น 8
         ],
-      ),
-    );
-  }
-
+        Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16),
+        ),
+        const SizedBox(width: 16), // ใช้ SizedBox แทน Spacer เพื่อควบคุมระยะห่าง
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: value.split('\n').map((line) => Text(
+              line,
+              style: const TextStyle(fontSize: 16),
+              textAlign: TextAlign.end,
+            )).toList(),
+          ),
+        ),
+      ],
+    ),
+  );
+}
   @override
   Widget build(BuildContext context) {
     // กรณีกำลังโหลดข้อมูล
     if (isLoading) {
-      return Center(child: CircularProgressIndicator());
+      return const Center(child: CircularProgressIndicator());
     }
 
     final user = _auth.currentUser;
@@ -319,7 +343,7 @@ class _ProfilePageState extends State<ProfilePage> {
       body: SafeArea(
         child: SingleChildScrollView(
           child: Padding(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -331,7 +355,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   child: Container(
                     width: double.infinity,
-                    padding: EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(24),
                     child: Column(
                       children: [
                         CircleAvatar(
@@ -340,7 +364,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           child: Icon(Icons.person,
                               size: 60, color: Colors.blue.shade700),
                         ),
-                        SizedBox(height: 16),
+                        const SizedBox(height: 16),
                         Text(
                           username,
                           style: TextStyle(
@@ -348,13 +372,13 @@ class _ProfilePageState extends State<ProfilePage> {
                               fontWeight: FontWeight.bold,
                               color: Colors.blue.shade800),
                         ),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.email,
                                 color: Colors.grey[600], size: 18),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Text(
                               email,
                               style: TextStyle(
@@ -367,7 +391,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
 
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 // ส่วนข้อมูลสุขภาพ
                 Card(
@@ -381,11 +405,11 @@ class _ProfilePageState extends State<ProfilePage> {
                       // หัวข้อ
                       Container(
                         width: double.infinity,
-                        padding:
-                            EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 16),
                         decoration: BoxDecoration(
                           color: Colors.blue.shade100,
-                          borderRadius: BorderRadius.only(
+                          borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(12),
                             topRight: Radius.circular(12),
                           ),
@@ -394,7 +418,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           children: [
                             Icon(Icons.health_and_safety,
                                 color: Colors.red.shade600),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Text(
                               "ข้อมูลสุขภาพ",
                               style: TextStyle(
@@ -414,11 +438,19 @@ class _ProfilePageState extends State<ProfilePage> {
                         icon: Icons.medical_services,
                         iconColor: Colors.red.shade400,
                       ),
+
+                      // เพิ่มข้อมูลเวลาทานยา
+// ในส่วนของข้อมูลสุขภาพ
+_buildInfoRow(
+  label: "เวลาทานยา",
+  value: _formatMedicationTime(userData?['medicationData']),
+  icon: Icons.medication,
+  iconColor: Colors.green.shade600,
+),
                     ],
                   ),
                 ),
-
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 // ส่วนตารางเวลาทานอาหาร
                 Card(
@@ -432,11 +464,11 @@ class _ProfilePageState extends State<ProfilePage> {
                       // หัวข้อ
                       Container(
                         width: double.infinity,
-                        padding:
-                            EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 16),
                         decoration: BoxDecoration(
                           color: Colors.blue.shade100,
-                          borderRadius: BorderRadius.only(
+                          borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(12),
                             topRight: Radius.circular(12),
                           ),
@@ -445,7 +477,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           children: [
                             Icon(Icons.restaurant_menu,
                                 color: Colors.blue.shade700),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Text(
                               "ตารางเวลาทานอาหาร",
                               style: TextStyle(
@@ -481,7 +513,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
 
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
 
                 // ส่วนปุ่มการทำงาน
                 Card(
@@ -495,11 +527,11 @@ class _ProfilePageState extends State<ProfilePage> {
                       // หัวข้อ
                       Container(
                         width: double.infinity,
-                        padding:
-                            EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 12, horizontal: 16),
                         decoration: BoxDecoration(
                           color: Colors.blue.shade100,
-                          borderRadius: BorderRadius.only(
+                          borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(12),
                             topRight: Radius.circular(12),
                           ),
@@ -507,7 +539,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         child: Row(
                           children: [
                             Icon(Icons.settings, color: Colors.grey.shade700),
-                            SizedBox(width: 8),
+                            const SizedBox(width: 8),
                             Text(
                               "การตั้งค่า",
                               style: TextStyle(
@@ -522,9 +554,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
                       // ปุ่มแก้ไขข้อมูล
                       ListTile(
-                        leading: Icon(Icons.edit, color: Colors.blue),
-                        title: Text("แก้ไขข้อมูลส่วนตัว"),
-                        trailing: Icon(Icons.arrow_forward_ios, size: 16),
+                        leading: const Icon(Icons.edit, color: Colors.blue),
+                        title: const Text("แก้ไขข้อมูลส่วนตัว"),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        // ในส่วนของปุ่มแก้ไขข้อมูล
                         onTap: () {
                           // นำทางไปยังหน้าแก้ไขข้อมูลผู้ใช้
                           Navigator.push(
@@ -544,6 +577,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                     medicalCondition == 'ยังไม่มีข้อมูล'
                                         ? ''
                                         : medicalCondition,
+                                medicationData: userData?[
+                                    'medicationData'], // เปลี่ยนจาก medicationTime เป็น medicationData
                                 onMedicalConditionUpdated: (newCondition) {
                                   setState(() {
                                     _loadUserData();
@@ -559,23 +594,23 @@ class _ProfilePageState extends State<ProfilePage> {
                       ListTile(
                         leading: Icon(Icons.lock_outline,
                             color: Colors.amber.shade700),
-                        title: Text("เปลี่ยนรหัสผ่าน"),
-                        trailing: Icon(Icons.arrow_forward_ios, size: 16),
+                        title: const Text("เปลี่ยนรหัสผ่าน"),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                         onTap: () => _changePassword(context),
                       ),
 
                       // ปุ่มออกจากระบบ
                       ListTile(
-                        leading: Icon(Icons.logout, color: Colors.red),
-                        title: Text("ออกจากระบบ"),
-                        trailing: Icon(Icons.arrow_forward_ios, size: 16),
+                        leading: const Icon(Icons.logout, color: Colors.red),
+                        title: const Text("ออกจากระบบ"),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                         onTap: () => _signOut(context),
                       ),
                     ],
                   ),
                 ),
 
-                SizedBox(height: 30),
+                const SizedBox(height: 30),
               ],
             ),
           ),

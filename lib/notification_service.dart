@@ -6,10 +6,46 @@ import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:async';
+import 'package:firebase_core/firebase_core.dart';
+
+// เพิ่ม pragma annotation สำหรับ class
+@pragma('vm:entry-point')
+// เพิ่มคลาสใหม่
+class NotificationEvent {
+  final String type;
+  final String mealType;
+  final DateTime timestamp; // เพิ่ม timestamp
+  final String eventId; // เพิ่ม unique event ID
+
+  NotificationEvent(this.type, this.mealType, {DateTime? timestamp})
+      : timestamp = timestamp ?? DateTime.now(),
+        eventId = '${type}_${mealType}_${(timestamp ?? DateTime.now()).millisecondsSinceEpoch}';
+}
+
+// ใน class NotificationService
+final StreamController<NotificationEvent> _notificationController = 
+  StreamController<NotificationEvent>.broadcast();
+
+Stream<NotificationEvent> get notificationStream => _notificationController.stream;
+
 
 class NotificationService {
-
   bool _isTimezoneInitialized = false;
+  bool _notificationsEnabled = false;
+  
+  // เพิ่ม Set เพื่อติดตาม completed meals วันนี้
+  Set<String> _todayCompletedMeals = {};
+  String? _lastCompletedDate;
+  
+ // เพิ่ม StreamController
+  final StreamController<NotificationEvent> _notificationController = 
+    StreamController<NotificationEvent>.broadcast();
+
+  Stream<NotificationEvent> get notificationStream => _notificationController.stream;
 
   // Singleton pattern
   static final NotificationService _notificationService =
@@ -21,213 +57,194 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
+
   
-  // เพิ่มการเช็คว่าแอปได้รับอนุญาตแจ้งเตือนหรือไม่
-  bool _notificationsEnabled = false;
+
+  // ปรับปรุงการขอสิทธิ์แจ้งเตือน - เพิ่มการขอสิทธิ์หลายแบบ
   Future<bool> checkAndRequestNotificationPermission() async {
-  if (Platform.isAndroid) {
-    // สำหรับ Android 13+ ต้องขอสิทธิ์แยกต่างหาก
-    final AndroidFlutterLocalNotificationsPlugin? androidPlugin = 
-        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-    
-    if (androidPlugin != null) {
-      // ตรวจสอบว่าเป็น Android 13+ หรือไม่
-      final bool? areNotificationsEnabled = await androidPlugin.areNotificationsEnabled();
-      if (areNotificationsEnabled == false) {
-        // แสดง dialog ขอสิทธิ์
-        return false;
-      }
-    }
-    return true;
-  } else if (Platform.isIOS) {
-    final bool? result = await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>()
-        ?.requestPermissions(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
-    return result ?? false;
-  }
-  return true;
-}
-
-Future<void> init() async {
-  try {
-    if (!_isTimezoneInitialized) {
-      // Initialize timezone database
-      tz_data.initializeTimeZones();
-      
-      // Set default timezone (Asia/Bangkok)
-      try {
-        final bangkok = tz.getLocation('Asia/Bangkok');
-        tz.setLocalLocation(bangkok);
-        _isTimezoneInitialized = true;
-        debugPrint('Timezone initialized to Asia/Bangkok');
-      } catch (e) {
-        debugPrint('Error setting timezone: $e');
-        // Fallback to UTC
-        tz.setLocalLocation(tz.UTC);
-        _isTimezoneInitialized = true;
-        debugPrint('Timezone initialized to UTC');
-      }
-    }
-  } catch (e) {
-    debugPrint('Error initializing timezone: $e');
-    _isTimezoneInitialized = false;
-    rethrow; // เพิ่มบรรทัดนี้เพื่อให้เห็นข้อผิดพลาดชัดเจนขึ้น
-  }
-
-    // สร้าง notification channel สำหรับ Android อย่างละเอียด
-    AndroidNotificationChannel channel = const AndroidNotificationChannel(
-      'meal_notification_channel',                  // id
-      'Meal Notifications',                         // name
-      description: 'Notifications for meal times',  // description
-      importance: Importance.high,
-      playSound: true,
-      enableVibration: true,
-      showBadge: true,
-      enableLights: true,
-      ledColor: Colors.blue,
-    );
-
-    // สร้าง channel ก่อนใช้งาน (จำเป็นสำหรับ Android 8.0 ขึ้นไป)
-    await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
-
-    // ตั้งค่า notification icon - เปลี่ยนไปใช้ icon ที่มีอยู่จริงในแอป
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@drawable/notification_icon');
-
-    // ตั้งค่า iOS หากแอปสนับสนุน iOS - Updated for newer versions
-    final DarwinInitializationSettings initializationSettingsDarwin =
-        DarwinInitializationSettings(
-      requestSoundPermission: true,
-      requestBadgePermission: true,
-      requestAlertPermission: true,
-      // FIX: Remove onDidReceiveLocalNotification parameter as it's no longer supported
-    );
-
-    // รวมการตั้งค่าทั้งหมด
-    final InitializationSettings initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsDarwin,
-    );
-
-    // เริ่มต้น plugin
-    await flutterLocalNotificationsPlugin.initialize(
-      initializationSettings,
-      onDidReceiveNotificationResponse: (NotificationResponse notificationResponse) async {
-        // จัดการเมื่อผู้ใช้แตะที่การแจ้งเตือน
-        debugPrint('Notification clicked: ${notificationResponse.payload}');
-      },
-    );
-
-    // ขอสิทธิ์แจ้งเตือน และเก็บผลลัพธ์
-    _notificationsEnabled = await _requestNotificationPermissions();
-    
-    // บันทึกสถานะการอนุญาตแจ้งเตือนใน SharedPreferences
-    _saveNotificationPermissionStatus(_notificationsEnabled);
-    
-    debugPrint('Notifications enabled: $_notificationsEnabled');
-  }
-
-  // บันทึกสถานะการอนุญาตแจ้งเตือน
-  Future<void> _saveNotificationPermissionStatus(bool isEnabled) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('notifications_enabled', isEnabled);
-    } catch (e) {
-      debugPrint('Error saving notification permission status: $e');
-    }
-  }
-  
-  // อ่านสถานะการอนุญาตแจ้งเตือน
-  Future<bool> getNotificationPermissionStatus() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool('notifications_enabled') ?? false;
-    } catch (e) {
-      debugPrint('Error getting notification permission status: $e');
-      return false;
-    }
-  }
+      if (kIsWeb) return false;
 
-  // ขอสิทธิ์แจ้งเตือนแยกเป็นฟังก์ชัน - ปรับปรุงให้รองรับ Android 13+
-  Future<bool> _requestNotificationPermissions() async {
-    bool permissionGranted = false;
-    
-    // สำหรับ Android
-    if (Platform.isAndroid) {
-      // ตรวจสอบว่าสามารถขอสิทธิ์แจ้งเตือนได้หรือไม่ (Android 13+)
-      final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-          flutterLocalNotificationsPlugin
-              .resolvePlatformSpecificImplementation<
-                  AndroidFlutterLocalNotificationsPlugin>();
+      if (Platform.isAndroid) {
+        // ขอสิทธิ์หลายแบบสำหรับ Android
+        Map<Permission, PermissionStatus> statuses = await [
+          Permission.notification,
+          Permission.scheduleExactAlarm,
+          Permission.systemAlertWindow,
+          Permission.ignoreBatteryOptimizations,
+        ].request();
 
-      // For Android 13+ (API Level 33+), we need to check and request notification permission
-      if (androidImplementation != null) {
-        try {
-          // Check if we're on Android 13+ where requestPermission is needed
-          // For older versions we'll assume permissions are granted through manifest
-          const int androidTiramisuSdkInt = 33; // Android 13 SDK int value
-          // Use areNotificationsEnabled to check current permission status (available in recent versions)
-          permissionGranted = await androidImplementation.areNotificationsEnabled() ?? false;
-          debugPrint('Android notification permission check: $permissionGranted');
-        } catch (e) {
-          debugPrint('Error checking Android notification permission: $e');
-          // Assume granted if we can't check (for compatibility with older devices)
-          permissionGranted = true;
+        bool hasNotificationPermission =
+            statuses[Permission.notification]?.isGranted ?? false;
+        bool hasAlarmPermission =
+            statuses[Permission.scheduleExactAlarm]?.isGranted ?? false;
+        bool hasOverlayPermission =
+            statuses[Permission.systemAlertWindow]?.isGranted ?? false;
+
+        debugPrint('Notification permission: $hasNotificationPermission');
+        debugPrint('Exact alarm permission: $hasAlarmPermission');
+        debugPrint('System overlay permission: $hasOverlayPermission');
+
+        // ขอ permission จาก plugin โดยตรง
+        final plugin = flutterLocalNotificationsPlugin
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>();
+
+        if (plugin != null) {
+          final bool? requestResult =
+              await plugin.requestNotificationsPermission();
+          final bool? exactAlarmResult =
+              await plugin.requestExactAlarmsPermission();
+          debugPrint('Plugin permission request result: $requestResult');
+          debugPrint('Exact alarm permission result: $exactAlarmResult');
+          hasNotificationPermission =
+              requestResult ?? hasNotificationPermission;
         }
+
+        return hasNotificationPermission;
+      } else if (Platform.isIOS) {
+        final bool? result = await flutterLocalNotificationsPlugin
+            .resolvePlatformSpecificImplementation<
+                IOSFlutterLocalNotificationsPlugin>()
+            ?.requestPermissions(
+              alert: true,
+              badge: true,
+              sound: true,
+              critical: true,
+            );
+        return result ?? false;
       }
-    } 
-    // สำหรับ iOS
-    else if (Platform.isIOS) {
-      final bool? result = await flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
-          ?.requestPermissions(
-            alert: true,
-            badge: true,
-            sound: true,
-          );
-      permissionGranted = result ?? false;
-      debugPrint('iOS notification permission granted: $permissionGranted');
+    } catch (e) {
+      debugPrint('Error checking notification permission: $e');
     }
-    
-    return permissionGranted;
+    return false;
   }
 
-  // กำหนดการแจ้งเตือนสำหรับมื้ออาหาร - ปรับปรุงประสิทธิภาพ
-Future<void> scheduleMealNotification({
+  Future<void> init() async {
+    try {
+      // ตรวจสอบว่า Firebase ถูก initialize แล้วหรือยัง
+      try {
+        await Firebase.initializeApp();
+        debugPrint('Firebase initialized in NotificationService');
+      } catch (e) {
+        debugPrint('Firebase already initialized: $e');
+        debugPrint('Error initializing NotificationService: $e');
+
+      }
+
+      // Initialize AndroidAlarmManager first
+      if (Platform.isAndroid) {
+        await AndroidAlarmManager.initialize();
+        debugPrint('AndroidAlarmManager initialized');
+      }
+
+      if (!_isTimezoneInitialized) {
+        tz_data.initializeTimeZones();
+
+        try {
+          final bangkok = tz.getLocation('Asia/Bangkok');
+          tz.setLocalLocation(bangkok);
+          _isTimezoneInitialized = true;
+          debugPrint('Timezone initialized to Asia/Bangkok');
+        } catch (e) {
+          debugPrint('Error setting timezone: $e');
+          tz.setLocalLocation(tz.UTC);
+          _isTimezoneInitialized = true;
+          debugPrint('Timezone initialized to UTC');
+        }
+        
+      }
+      
+
+      // สร้าง fullscreen alarm channel เท่านั้น
+      AndroidNotificationChannel fullscreenChannel =
+          const AndroidNotificationChannel(
+        'fullscreen_alarm_channel',
+        'Fullscreen Meal Alarms',
+        description: 'Fullscreen alarm notifications for meal times',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        showBadge: true,
+        enableLights: true,
+        ledColor: Colors.red,
+        sound: RawResourceAndroidNotificationSound('alarm_sound'),
+      );
+
+      await flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(fullscreenChannel);
+          
+      // ขอสิทธิ์แจ้งเตือน - ทำหลังจาก initialize
+      _notificationsEnabled = await checkAndRequestNotificationPermission();
+      debugPrint('Notifications enabled: $_notificationsEnabled');
+
+      // ถ้ายังไม่ได้สิทธิ์ ลองขออีกครั้ง
+      if (!_notificationsEnabled) {
+        debugPrint('Requesting permissions again...');
+        await Future.delayed(Duration(milliseconds: 500));
+        _notificationsEnabled = await checkAndRequestNotificationPermission();
+        debugPrint('Notifications enabled after retry: $_notificationsEnabled');
+      }
+
+      // โหลดข้อมูล completed meals วันนี้
+      await _loadTodayCompletedMeals();
+      
+    } catch (e) {
+      debugPrint('Error initializing NotificationService: $e');
+      // อย่า rethrow เพื่อให้แอปทำงานต่อได้
+    }
+    
+  }
+
+  // เพิ่มฟังก์ชันโหลดข้อมูล completed meals วันนี้
+  Future<void> _loadTodayCompletedMeals() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      
+      // ถ้าเป็นวันใหม่ ให้ล้างข้อมูลเก่า
+      if (_lastCompletedDate != today) {
+        _todayCompletedMeals.clear();
+        _lastCompletedDate = today;
+      }
+      
+      // โหลดข้อมูลจาก SharedPreferences
+      final List<String> completedMeals = prefs.getStringList('completed_meals_$today') ?? [];
+      _todayCompletedMeals = completedMeals.toSet();
+      
+      debugPrint('Loaded today completed meals: $_todayCompletedMeals');
+    } catch (e) {
+      debugPrint('Error loading today completed meals: $e');
+    }
+  }
+
+  // เพิ่มฟังก์ชันบันทึกข้อมูล completed meals
+  Future<void> _saveTodayCompletedMeals() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      
+      await prefs.setStringList('completed_meals_$today', _todayCompletedMeals.toList());
+      debugPrint('Saved today completed meals: $_todayCompletedMeals');
+    } catch (e) {
+      debugPrint('Error saving today completed meals: $e');
+    }
+  }
+
+  // เพิ่มฟังก์ชันจัดการการตอบสนองการแจ้งเตือน
+Future<void> _scheduleAlarmNotification({
   required int id,
   required String title,
   required String body,
   required String time,
-  required bool daily,
+  required String payload,
 }) async {
   try {
-    // 1. ตรวจสอบและ initialize timezone
-    if (!_isTimezoneInitialized) {
-      await init();
-      if (!_isTimezoneInitialized) {
-        throw Exception('Failed to initialize timezone');
-      }
-    }
-
-    // 2. ตรวจสอบสิทธิ์การแจ้งเตือน
-    final hasPermission = await checkAndRequestNotificationPermission();
-    if (!hasPermission) {
-      debugPrint('Notification permission not granted');
-      return;
-    }
-
-    // 3. แปลงเวลาและตั้งค่า timezone
     final timeFormat = DateFormat('hh:mm a');
     final parsedTime = timeFormat.parse(time);
-    
+
     final now = DateTime.now();
     var scheduledDate = DateTime(
       now.year,
@@ -237,212 +254,413 @@ Future<void> scheduleMealNotification({
       parsedTime.minute,
     );
 
-    // 4. ปรับเวลาหากผ่านไปแล้ว
     if (scheduledDate.isBefore(now)) {
       scheduledDate = scheduledDate.add(const Duration(days: 1));
     }
 
-    // 5. แปลงเป็น TZDateTime
     final tzLocation = tz.local;
     final scheduledTZDateTime = tz.TZDateTime.from(scheduledDate, tzLocation);
 
-    // 6. Debug log
-    debugPrint('''
-Scheduling notification:
-- Current local time: $now
-- Scheduled time: $time
-- Parsed time: $parsedTime
-- Scheduled date: $scheduledDate
-- TZDateTime: $scheduledTZDateTime
-- Timezone: ${tzLocation.name}
-''');
-
-    // 7. กำหนดการแจ้งเตือน
     await flutterLocalNotificationsPlugin.zonedSchedule(
-      id,
+      id + 1000,
       title,
       body,
       scheduledTZDateTime,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          'meal_notification_channel',
-          'Meal Notifications',
-          channelDescription: 'Notifications for meal times',
-          importance: Importance.high,
-          priority: Priority.high,
-          styleInformation: BigTextStyleInformation(body),
-          icon: 'notification_icon',
-          channelShowBadge: true,
-          showWhen: true,
-          autoCancel: true,
-          visibility: NotificationVisibility.public,
-          fullScreenIntent: true,
-        ),
-        iOS: const DarwinNotificationDetails(
-          presentAlert: true,
-          presentBadge: true,
-          presentSound: true,
-        ),
-      ),
+      _createAlarmNotificationDetails(),
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      matchDateTimeComponents: daily ? DateTimeComponents.time : null,
-      payload: 'meal_$id',
+      matchDateTimeComponents: DateTimeComponents.time,
+      payload: payload,
     );
 
-    // 8. บันทึกการตั้งค่า
-    await _saveScheduledNotification(id, title, body, time, daily);
-    
-    debugPrint('Notification scheduled successfully for $time');
-    debugPrint('Current TZ time: ${tz.TZDateTime.now(tzLocation)}');
-
+    debugPrint('✅ Alarm scheduled for $time with ID $id');
   } catch (e) {
-    debugPrint('Error in scheduleMealNotification: $e');
-    rethrow;
+    debugPrint('❌ Error scheduling alarm: $e');
   }
 }
 
-  // บันทึกข้อมูลการแจ้งเตือนที่ตั้งเวลาไว้ใน SharedPreferences
-  Future<void> _saveScheduledNotification(
-    int id, String title, String body, String time, bool daily) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('notification_${id}_time', time);
-      await prefs.setString('notification_${id}_title', title);
-      await prefs.setString('notification_${id}_body', body);
-      await prefs.setBool('notification_${id}_daily', daily);
-      await prefs.setBool('notification_${id}_active', true);
-    } catch (e) {
-      debugPrint('Error saving scheduled notification: $e');
-    }
-  }
-
-  // ฟังก์ชันสำหรับโหลดและตั้งค่าการแจ้งเตือนทั้งหมดใหม่ (เรียกใช้หลังจากรีสตาร์ทแอป)
-  Future<void> reloadScheduledNotifications() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      
-      // ตรวจสอบการแจ้งเตือนทั้ง 3 มื้อ
-      for (int id = 1; id <= 3; id++) {
-        bool isActive = prefs.getBool('notification_${id}_active') ?? false;
-        
-        if (isActive) {
-          String? title = prefs.getString('notification_${id}_title');
-          String? body = prefs.getString('notification_${id}_body');
-          String? time = prefs.getString('notification_${id}_time');
-          bool daily = prefs.getBool('notification_${id}_daily') ?? true;
-          
-          if (title != null && body != null && time != null) {
-            await scheduleMealNotification(
-              id: id,
-              title: title,
-              body: body,
-              time: time,
-              daily: daily,
-            );
-            debugPrint('Reloaded notification #$id for $time');
-          }
-        }
-      }
-    } catch (e) {
-      debugPrint('Error reloading scheduled notifications: $e');
-    }
-  }
-
-  // ทดสอบการแจ้งเตือนทันที (สำหรับตรวจสอบว่าการแจ้งเตือนทำงานได้)
-  Future<void> showTestNotification() async {
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
-      'meal_notification_channel',
-      'Meal Notifications',
-      channelDescription: 'Notifications for meal times',
+NotificationDetails _createAlarmNotificationDetails() {
+  return NotificationDetails(
+    android: AndroidNotificationDetails(
+      'fullscreen_alarm_channel',
+      'Fullscreen Alarm',
+      channelDescription: 'Alarm notifications for meals and medications',
       importance: Importance.max,
-      priority: Priority.high,
-      ticker: 'ticker',
-      icon: 'notification_icon',
+      priority: Priority.max,
+      playSound: true,
+      sound: RawResourceAndroidNotificationSound('alarm_sound'),
+      enableVibration: true,
+      vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000, 500, 1000]),
       fullScreenIntent: true,
+      category: AndroidNotificationCategory.alarm,
       visibility: NotificationVisibility.public,
-    );
-    
-    const NotificationDetails platformChannelSpecifics =
-        NotificationDetails(android: androidPlatformChannelSpecifics);
-        
-    await flutterLocalNotificationsPlugin.show(
-      0,
-      'ทดสอบการแจ้งเตือน',
-      'หากคุณเห็นข้อความนี้ แสดงว่าการแจ้งเตือนทำงานได้แล้ว',
-      platformChannelSpecifics,
-      payload: 'test_notification',
-    );
+      color: Colors.red,
+      colorized: true,
+      icon: 'notification_icon',
+      largeIcon: DrawableResourceAndroidBitmap('notification_icon'),
+      styleInformation: BigTextStyleInformation(
+        'กรุณาปัดหรือกดเพื่อปิดการแจ้งเตือน',
+        htmlFormatBigText: false,
+        contentTitle: '⏰ แจ้งเตือน',
+        htmlFormatContentTitle: false,
+      ),
+    ),
+  );
+}
+
+
+
+  // เพิ่มฟังก์ชันเช็คว่ามื้อไหนทานแล้วจาก notification หรือไม่
+  bool wasMealCompletedByNotification(String mealType) {
+    return _todayCompletedMeals.contains(mealType);
   }
 
-  // ยกเลิกการแจ้งเตือนตาม ID
-  Future<void> cancelNotification(int id) async {
-    await flutterLocalNotificationsPlugin.cancel(id);
-    
-    // ลบข้อมูลการแจ้งเตือนจาก SharedPreferences
+  // เพิ่มฟังก์ชันล้างข้อมูลการทานของมื้อใดมื้อหนึ่ง
+  Future<void> clearMealCompletion(String mealType) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('notification_${id}_active', false);
+      _todayCompletedMeals.remove(mealType);
+      await _saveTodayCompletedMeals();
+      debugPrint('✅ Cleared meal completion for: $mealType');
     } catch (e) {
-      debugPrint('Error removing notification data: $e');
+      debugPrint('❌ Error clearing meal completion: $e');
     }
   }
 
-  // ยกเลิกการแจ้งเตือนทั้งหมด
-  Future<void> cancelAllNotifications() async {
-    await flutterLocalNotificationsPlugin.cancelAll();
-    
-    // ลบข้อมูลการแจ้งเตือนทั้งหมดจาก SharedPreferences
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      for (int id = 1; id <= 3; id++) {
-        await prefs.setBool('notification_${id}_active', false);
-      }
-    } catch (e) {
-      debugPrint('Error removing all notification data: $e');
-    }
-  }
-
-  // กำหนดการแจ้งเตือนทั้งหมดสำหรับมื้ออาหาร
-  Future<void> scheduleAllMealNotifications({
-    required String breakfastTime,
-    required String lunchTime,
-    required String dinnerTime,
+  // ปรับปรุงการตั้งค่า Fullscreen Alarm ใหม่
+  Future<void> scheduleFullscreenAlarm({
+    required int id,
+    required String title,
+    required String body,
+    required String time,
   }) async {
-    // ยกเลิกการแจ้งเตือนเดิมก่อน
-    await cancelNotification(1); // breakfast
-    await cancelNotification(2); // lunch
-    await cancelNotification(3); // dinner
+    try {
+      final timeFormat = DateFormat('hh:mm a');
+      final parsedTime = timeFormat.parse(time);
 
-    // ตั้งการแจ้งเตือนใหม่
+      final now = DateTime.now();
+      var scheduledDate = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        parsedTime.hour,
+        parsedTime.minute,
+      );
+
+      if (scheduledDate.isBefore(now)) {
+        scheduledDate = scheduledDate.add(const Duration(days: 1));
+      }
+
+      final tzLocation = tz.local;
+      final scheduledTZDateTime = tz.TZDateTime.from(scheduledDate, tzLocation);
+
+      await flutterLocalNotificationsPlugin.zonedSchedule(
+        id + 1000,
+        title,
+        body,
+        scheduledTZDateTime,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            'fullscreen_alarm_channel',
+            'Fullscreen Meal Alarms',
+            channelDescription: 'Fullscreen alarm notifications for meal times',
+            importance: Importance.max,
+            priority: Priority.max,
+            playSound: true,
+            sound: RawResourceAndroidNotificationSound('alarm_sound'),
+            enableVibration: true,
+            vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000, 500, 1000]),
+            fullScreenIntent: true,
+            category: AndroidNotificationCategory.alarm,
+            visibility: NotificationVisibility.public,
+            showWhen: true,
+            when: null,
+            usesChronometer: false,
+            chronometerCountDown: false,
+            channelShowBadge: true,
+            onlyAlertOnce: false,
+            autoCancel: true,
+            ongoing: false,
+            silent: false,
+            color: Colors.red,
+            colorized: true,
+            icon: 'notification_icon',
+            largeIcon: DrawableResourceAndroidBitmap('notification_icon'),
+            ticker: '🚨 $title - $body',
+            timeoutAfter: 300000,
+            styleInformation: BigTextStyleInformation(
+              '$body\n\n⏰ กรุณากดเพื่อปิดการแจ้งเตือน',
+              htmlFormatBigText: false,
+              contentTitle: title,
+              htmlFormatContentTitle: false,
+              summaryText: 'เตือนทานอาหาร',
+              htmlFormatSummaryText: false,
+            ),   
+          ),
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
+        payload: 'meal_$id',
+      );
+
+      debugPrint('✅ Fullscreen Alarm scheduled for $time with ID $id');
+    } catch (e) {
+      debugPrint('❌ Error scheduling fullscreen alarm: $e');
+    }
+  }
+
+  // แสดงการแจ้งเตือนแบบปลุกทันที (สำหรับทดสอบ)
+  Future<void> showAlarmNotificationNow({
+    required String title,
+    required String body,
+  }) async {
+    try {
+      await _showFullscreenAlarmNotification(
+        id: 9999,
+        title: title,
+        body: body,
+      );
+    } catch (e) {
+      debugPrint('❌ Error showing immediate alarm: $e');
+    }
+  }
+
+  // แสดงการแจ้งเตือนแบบ Fullscreen Alarm
+  Future<void> _showFullscreenAlarmNotification({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    try {
+      final AndroidNotificationDetails fullscreenDetails = AndroidNotificationDetails(
+        'fullscreen_alarm_channel',
+        'Fullscreen Meal Alarms',
+        channelDescription: 'Fullscreen alarm notifications for meal times',
+        importance: Importance.max,
+        priority: Priority.max,
+        playSound: true,
+        sound: RawResourceAndroidNotificationSound('alarm_sound'),
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000, 500, 1000]),
+        fullScreenIntent: true,
+        category: AndroidNotificationCategory.alarm,
+        visibility: NotificationVisibility.public,
+        showWhen: true,
+        when: DateTime.now().millisecondsSinceEpoch,
+        usesChronometer: false,
+        chronometerCountDown: false,
+        channelShowBadge: true,
+        onlyAlertOnce: false,
+        autoCancel: true,
+        ongoing: false,
+        silent: false,
+        color: Colors.red,
+        colorized: true,
+        icon: 'notification_icon',
+        largeIcon: DrawableResourceAndroidBitmap('notification_icon'),
+        ticker: '🚨 $title - $body',
+        timeoutAfter: 300000,
+        styleInformation: BigTextStyleInformation(
+          '$body\n\n⏰ กรุณากดเพื่อปิดการแจ้งเตือน',
+          htmlFormatBigText: false,
+          contentTitle: title,
+          htmlFormatContentTitle: false,
+          summaryText: 'เตือนทานอาหาร',
+          htmlFormatSummaryText: false,
+        ),
+      );
+
+      final NotificationDetails fullscreenPlatformChannelSpecifics =
+          NotificationDetails(android: fullscreenDetails);
+
+      await flutterLocalNotificationsPlugin.show(
+        id,
+        title,
+        body,
+        fullscreenPlatformChannelSpecifics,
+        payload: 'meal_${id % 3 + 1}',
+      );
+
+      debugPrint('✅ Fullscreen alarm notification shown with ID: $id');
+    } catch (e) {
+      debugPrint('❌ Error showing fullscreen alarm: $e');
+    }
+  }
+
+  // ฟังก์ชันหลักสำหรับตั้งค่าการแจ้งเตือนทั้งหมด (เฉพาะปลุกเท่านั้น)
+Future<void> scheduleAllMealNotifications({
+  required String breakfastTime,
+  required String lunchTime,
+  required String dinnerTime,
+  required Map<String, dynamic> medicationData,
+}) async {
+  try {
+    // ยกเลิกการแจ้งเตือนเดิมทั้งหมด
+    await cancelAllNotifications();
+
+    // ตั้งค่าการแจ้งเตือนมื้ออาหาร
     if (breakfastTime.isNotEmpty) {
-      await scheduleMealNotification(
-        id: 1,
-        title: 'เตือนมื้อเช้า',
-        body: 'ถึงเวลาทานอาหารเช้าแล้ว เราได้เตรียมรายการอาหารไว้ให้คุณแล้ว',
-        time: breakfastTime,
-        daily: true,
+      await _scheduleMealWithMedication(
+        mealId: 1,
+        mealTime: breakfastTime,
+        mealName: 'มื้อเช้า',
+        medicationData: medicationData,
       );
     }
 
     if (lunchTime.isNotEmpty) {
-      await scheduleMealNotification(
-        id: 2,
-        title: 'เตือนมื้อกลางวัน',
-        body: 'ถึงเวลาทานอาหารกลางวันแล้ว เราได้เตรียมรายการอาหารไว้ให้คุณแล้ว',
-        time: lunchTime,
-        daily: true,
+      await _scheduleMealWithMedication(
+        mealId: 2,
+        mealTime: lunchTime,
+        mealName: 'มื้อกลางวัน',
+        medicationData: medicationData,
       );
     }
 
     if (dinnerTime.isNotEmpty) {
-      await scheduleMealNotification(
-        id: 3,
-        title: 'เตือนมื้อเย็น',
-        body: 'ถึงเวลาทานอาหารเย็นแล้ว เราได้เตรียมรายการอาหารไว้ให้คุณแล้ว',
-        time: dinnerTime,
-        daily: true,
+      await _scheduleMealWithMedication(
+        mealId: 3,
+        mealTime: dinnerTime,
+        mealName: 'มื้อเย็น',
+        medicationData: medicationData,
       );
+    }
+  } catch (e) {
+    debugPrint('❌ Error scheduling all meal notifications: $e');
+  }
+}
+
+Future<void> _scheduleMealWithMedication({
+  required int mealId,
+  required String mealTime,
+  required String mealName,
+  required Map<String, dynamic> medicationData,
+}) async {
+  try {
+    // ตั้งเวลามื้ออาหารหลัก
+    await _scheduleAlarmNotification(
+      id: mealId,
+      title: '⏰ เตือน$mealName',
+      body: 'ถึงเวลาทาน$mealNameแล้ว!',
+      time: mealTime,
+      payload: 'meal_$mealId',
+    );
+
+    // ตรวจสอบว่ามียาที่ต้องทานหรือไม่
+    if (medicationData['hasMedication'] == true) {
+      final timeFormat = DateFormat('hh:mm a');
+      final parsedTime = timeFormat.parse(mealTime);
+
+      // แจ้งเตือนก่อนอาหาร (ถ้ามี)
+      if (medicationData['beforeMeal'] == true && medicationData['beforeMinutes'] > 0) {
+        final beforeTime = parsedTime.subtract(Duration(minutes: medicationData['beforeMinutes']));
+        final beforeTimeStr = timeFormat.format(beforeTime);
+        
+        await _scheduleAlarmNotification(
+          id: mealId * 10 + 1, // ใช้ ID ที่ต่างกัน
+          title: '💊 ทานยาก่อน$mealName',
+          body: 'ถึงเวลาทานยาก่อน$mealName ${medicationData['beforeMinutes']} นาที',
+          time: beforeTimeStr,
+          payload: 'medication_before_$mealId',
+        );
+      }
+
+      // แจ้งเตือนหลังอาหาร (ถ้ามี)
+      if (medicationData['afterMeal'] == true && medicationData['afterMinutes'] > 0) {
+        final afterTime = parsedTime.add(Duration(minutes: medicationData['afterMinutes']));
+        final afterTimeStr = timeFormat.format(afterTime);
+        
+        await _scheduleAlarmNotification(
+          id: mealId * 10 + 2, // ใช้ ID ที่ต่างกัน
+          title: '💊 ทานยาหลัง$mealName',
+          body: 'ถึงเวลาทานยาหลัง$mealName ${medicationData['afterMinutes']} นาที',
+          time: afterTimeStr,
+          payload: 'medication_after_$mealId',
+        );
+      }
+    }
+  } catch (e) {
+    debugPrint('❌ Error scheduling meal with medication: $e');
+  }
+}
+
+
+
+  // ทดสอบการแจ้งเตือนแบบปลุกทันที
+  Future<void> showTestAlarm() async {
+    try {
+      await showAlarmNotificationNow(
+        title: '🧪 ทดสอบการปลุก',
+        body: 'หากคุณเห็นข้อความนี้แบบเต็มจอ แสดงว่าการปลุกทำงานได้แล้ว! ✅',
+      );
+      debugPrint('✅ Test alarm sent');
+    } catch (e) {
+      debugPrint('❌ Error sending test alarm: $e');
+    }
+  }
+
+
+  // ยกเลิกการแจ้งเตือนทั้งหมด
+  Future<void> cancelAllNotifications() async {
+    try {
+      await flutterLocalNotificationsPlugin.cancelAll();
+      debugPrint('✅ All notifications cancelled');
+    } catch (e) {
+      debugPrint('❌ Error cancelling notifications: $e');
+    }
+  }
+
+  // ตรวจสอบการแจ้งเตือนที่รอดำเนินการ
+  Future<List<PendingNotificationRequest>> getPendingNotifications() async {
+    return await flutterLocalNotificationsPlugin.pendingNotificationRequests();
+  }
+
+  // ฟังก์ชันตรวจสอบสถานะ permission
+  Future<void> checkPermissionStatus() async {
+    if (Platform.isAndroid) {
+      final notificationStatus = await Permission.notification.status;
+      final alarmStatus = await Permission.scheduleExactAlarm.status;
+      final batteryStatus = await Permission.ignoreBatteryOptimizations.status;
+      final overlayStatus = await Permission.systemAlertWindow.status;
+
+      debugPrint('🔍 Permission Status:');
+      debugPrint('  - Notification: $notificationStatus');
+      debugPrint('  - Exact Alarm: $alarmStatus');
+      debugPrint('  - Battery Optimization: $batteryStatus');
+      debugPrint('  - System Overlay: $overlayStatus');
+      debugPrint('  - Notifications Enabled: $_notificationsEnabled');
+
+      final pendingNotifications = await getPendingNotifications();
+      debugPrint('  - Pending Notifications: ${pendingNotifications.length}');
+      for (var notification in pendingNotifications) {
+        debugPrint('    ID: ${notification.id}, Title: ${notification.title}');
+      }
+    }
+  }
+
+  // ฟังก์ชันเช็คสถานะการทานอาหาร
+  Future<bool> isMealCompleted(String mealType) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      return prefs.getBool('${mealType}_completed_$today') ?? false;
+    } catch (e) {
+      debugPrint('❌ Error checking meal status: $e');
+      return false;
+    }
+  }
+
+  // ฟังก์ชันรีเซ็ตสถานะการทานอาหารรายวัน
+  Future<void> resetDailyMealStatus() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      
+      await prefs.remove('breakfast_completed_$today');
+      await prefs.remove('lunch_completed_$today');
+      await prefs.remove('dinner_completed_$today');
+      
+      debugPrint('✅ Daily meal status reset');
+    } catch (e) {
+      debugPrint('❌ Error resetting meal status: $e');
     }
   }
 }

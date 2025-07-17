@@ -5,7 +5,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.2.0' // เวอร์ชันล่าสุด
+        classpath 'com.android.tools.build:gradle:8.3.0' // เวอร์ชันล่าสุด
         classpath 'com.google.gms:google-services:4.4.0' // อัปเดตเป็นเวอร์ชันล่าสุด
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
     }

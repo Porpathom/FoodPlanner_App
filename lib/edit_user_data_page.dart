@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart'; // เพิ่ม package สำหรับจัดรูปแบบเวลา
+import 'package:intl/intl.dart';
 import 'notification_service.dart';
 
 class EditUserDataPage extends StatefulWidget {
@@ -11,14 +11,16 @@ class EditUserDataPage extends StatefulWidget {
   final String lunchTime;
   final String dinnerTime;
   final String medicalCondition;
-  final Function(String)? onMedicalConditionUpdated; // เพิ่ม callback function
+  final Map<String, dynamic>? medicationData; // Changed to accept medication data map
+  final Function(String)? onMedicalConditionUpdated;
 
   EditUserDataPage({
     required this.breakfastTime,
     required this.lunchTime,
     required this.dinnerTime,
     required this.medicalCondition,
-    this.onMedicalConditionUpdated, // เพิ่ม callback function
+    this.medicationData,
+    this.onMedicalConditionUpdated,
   });
 
   @override
@@ -29,24 +31,22 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
   late String breakfastTime;
   late String lunchTime;
   late String dinnerTime;
-  String selectedMedicalCondition = 'ไม่มีโรคประจำตัว';
+  String selectedMedicalCondition = 'โรคเบาหวาน';
+  bool hasMedication = false;
+  
+  // New medication time fields
+  bool beforeMeal = false;
+  bool afterMeal = false;
+  int beforeMinutes = 30;
+  int afterMinutes = 30;
 
-  // สำหรับตัวเลือกโรคประจำตัว
   final List<String> medicalConditions = [
-    'ไม่มีโรคประจำตัว',
     'โรคเบาหวาน',
     'โรคหัวใจ',
     'โรคความดันโลหิตสูง',
   ];
 
-  // Map สำหรับแปลงค่าระหว่าง medicalCondition และ suitableFor
   final Map<String, Map<String, bool>> medicalToSuitable = {
-    'ไม่มีโรคประจำตัว': {
-      'healthy': true,
-      'diabetes': false,
-      'heartDisease': false,
-      'highBloodPressure': false
-    },
     'โรคเบาหวาน': {
       'healthy': false,
       'diabetes': true,
@@ -78,23 +78,30 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
     lunchTime = widget.lunchTime;
     dinnerTime = widget.dinnerTime;
 
-    // ตั้งค่าโรคประจำตัวเริ่มต้น
     if (medicalConditions.contains(widget.medicalCondition)) {
       selectedMedicalCondition = widget.medicalCondition;
     } else {
-      selectedMedicalCondition = 'ไม่มีโรคประจำตัว';
+      selectedMedicalCondition = medicalConditions.isNotEmpty 
+          ? medicalConditions[0] 
+          : 'โรคเบาหวาน';
     }
 
-    // ตรวจสอบแผนอาหารปัจจุบัน
+    // Initialize medication data
+    if (widget.medicationData != null) {
+      hasMedication = widget.medicationData!['hasMedication'] ?? false;
+      beforeMeal = widget.medicationData!['beforeMeal'] ?? false;
+      afterMeal = widget.medicationData!['afterMeal'] ?? false;
+      beforeMinutes = widget.medicationData!['beforeMinutes'] ?? 30;
+      afterMinutes = widget.medicationData!['afterMinutes'] ?? 30;
+    }
+
     _checkCurrentMealPlan();
     _initializeNotificationService();
-
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await NotificationService().init();
-    });
   }
 
-// เพิ่มเมธอดตรวจสอบแผนอาหาร
+
+
+  // เพิ่มเมธอดตรวจสอบแผนอาหาร
   Future<void> _checkCurrentMealPlan() async {
     try {
       User? user = FirebaseAuth.instance.currentUser;
@@ -169,43 +176,42 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
   }
 
   // เพิ่มฟังก์ชันทดสอบการแจ้งเตือนใน EditUserDataPage
-
   Future<void> _testNotification() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text('Testing Notification'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(height: 16),
-            Text('You should receive a notification soon'),
-          ],
-        ),
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => AlertDialog(
+      title: Text('Testing Notification'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          CircularProgressIndicator(),
+          SizedBox(height: 16),
+          Text('You should receive a notification soon'),
+        ],
+      ),
+    ),
+  );
+
+  try {
+    await NotificationService().showTestAlarm();
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Test notification sent'),
+        backgroundColor: Colors.green,
       ),
     );
-
-    try {
-      await NotificationService().showTestNotification();
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Test notification sent'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to send test notification: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+  } catch (e) {
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Failed to send test notification: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
+}
 
   // ฟังก์ชันแสดงตัวเลือกเวลา
   Future<void> _selectTime(BuildContext context, String currentTime,
@@ -250,7 +256,7 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
     }
   }
 
- Future<void> _saveUserData() async {
+Future<void> _saveUserData() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -261,7 +267,6 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
     );
 
     try {
-      // แปลง medical condition เป็น suitableFor
       Map<String, bool> suitableFor =
           medicalToSuitable[selectedMedicalCondition] ??
               {
@@ -271,31 +276,52 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                 'highBloodPressure': false
               };
 
-      // บันทึกข้อมูลทั้งหมด
+      Map<String, dynamic> medicationData = {
+        'hasMedication': hasMedication,
+        'beforeMeal': beforeMeal,
+        'afterMeal': afterMeal,
+        'beforeMinutes': beforeMinutes,
+        'afterMinutes': afterMinutes,
+      };
+
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'breakfastTime': breakfastTime,
         'lunchTime': lunchTime,
         'dinnerTime': dinnerTime,
         'suitableFor': suitableFor,
         'medicalCondition': selectedMedicalCondition,
+        'medicationData': medicationData,
       }, SetOptions(merge: true));
 
-      // ตั้งเวลาแจ้งเตือนใหม่
-      await NotificationService().scheduleAllMealNotifications(
-        breakfastTime: breakfastTime,
-        lunchTime: lunchTime,
-        dinnerTime: dinnerTime,
-      );
+      try {
+        await NotificationService().scheduleAllMealNotifications(
+          breakfastTime: breakfastTime,
+          lunchTime: lunchTime,
+          dinnerTime: dinnerTime,
+          medicationData: medicationData,
+        );
+      } catch (e) {
+        debugPrint('Error scheduling notifications: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('บันทึกข้อมูลสำเร็จ แต่ไม่สามารถตั้งการแจ้งเตือนได้'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
 
-      // เรียก callback เพื่ออัปเดต UI
       if (widget.onMedicalConditionUpdated != null) {
         widget.onMedicalConditionUpdated!(selectedMedicalCondition);
       }
 
-      Navigator.pop(context); // ปิด loading
-      Navigator.pop(context); // กลับหน้าเดิม
+      // ปิด dialog loading
+      Navigator.of(context).pop();
+      
+      // ส่งผลลัพธ์กลับและปิดหน้า
+      Navigator.of(context).pop(true);
+      
     } catch (e) {
-      Navigator.pop(context); // ปิด loading
+      Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('เกิดข้อผิดพลาด: ${e.toString()}'),
@@ -304,6 +330,66 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
       );
     }
   }
+
+    Future<void> _showMinutesPicker(BuildContext context, bool isBefore) async {
+    int currentValue = isBefore ? beforeMinutes : afterMinutes;
+    
+    await showDialog<int>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(isBefore ? 'ก่อนอาหารกี่นาที' : 'หลังอาหารกี่นาที'),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('$currentValue นาที', style: TextStyle(fontSize: 20)),
+                  Slider(
+                    value: currentValue.toDouble(),
+                    min: 1,
+                    max: 120,
+                    divisions: 24,
+                    label: currentValue.toString(),
+                    onChanged: (double value) {
+                      setState(() {
+                        currentValue = value.round();
+                      });
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('ยกเลิก'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: Text('ตกลง'),
+              onPressed: () {
+                Navigator.of(context).pop(currentValue);
+              },
+            ),
+          ],
+        );
+      },
+    ).then((value) {
+      if (value != null) {
+        setState(() {
+          if (isBefore) {
+            beforeMinutes = value;
+          } else {
+            afterMinutes = value;
+          }
+        });
+      }
+    });
+  }
+
 
   // สร้าง widget สำหรับ time selector เพื่อลดโค้ดซ้ำซ้อน
   Widget _buildTimeSelector({
@@ -387,16 +473,16 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
               SizedBox(height: 24),
 
               // เวลาอาหาร - ส่วนนี้เป็น Card เดียวกัน
-              Card(
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+ Card(
+        elevation: 3,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
                       // หัวข้อ
                       Container(
                         width: double.infinity,
@@ -463,15 +549,15 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
 
               // ในส่วนของ Card ที่แสดงข้อมูลสุขภาพ
               Card(
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+        elevation: 3,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
                       // หัวข้อ (เดิม)
                       Container(
                         width: double.infinity,
@@ -535,7 +621,7 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                           ),
                         ),
 
-                      // DropdownButton
+                      // DropdownButton สำหรับโรคประจำตัว
                       Container(
                         decoration: BoxDecoration(
                           border: Border.all(color: Colors.grey.shade300),
@@ -570,15 +656,126 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                      
+                      SizedBox(height: 20),
+                      
+                      // ส่วนเพิ่มเติมสำหรับเวลาทานยา
+   Text(
+                "มียาที่ต้องรับประทานหรือไม่?",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
+              SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: RadioListTile<bool>(
+                      title: Text("มี"),
+                      value: true,
+                      groupValue: hasMedication,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          hasMedication = value ?? false;
+                        });
+                      },
+                    ),
+                  ),
+                  Expanded(
+                    child: RadioListTile<bool>(
+                      title: Text("ไม่มี"),
+                      value: false,
+                      groupValue: hasMedication,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          hasMedication = false;
+                          beforeMeal = false;
+                          afterMeal = false;
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+
+              // ส่วนเลือกเวลาทานยา (แสดงเฉพาะเมื่อ hasMedication เป็น true)
+              if (hasMedication) ...[
+                SizedBox(height: 20),
+                Text(
+                  "เวลาทานยา",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                SizedBox(height: 8),
+                
+                // Before meal checkbox and minutes
+                Row(
+                  children: [
+                    Checkbox(
+                      value: beforeMeal,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          beforeMeal = value ?? false;
+                        });
+                      },
+                    ),
+                    Text("ก่อนอาหาร"),
+                    Spacer(),
+                    if (beforeMeal)
+                      InkWell(
+                        onTap: () => _showMinutesPicker(context, true),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text("$beforeMinutes นาที"),
+                        ),
+                      ),
+                  ],
+                ),
+                
+                // After meal checkbox and minutes
+                Row(
+                  children: [
+                    Checkbox(
+                      value: afterMeal,
+                      onChanged: (bool? value) {
+                        setState(() {
+                          afterMeal = value ?? false;
+                        });
+                      },
+                    ),
+                    Text("หลังอาหาร"),
+                    Spacer(),
+                    if (afterMeal)
+                      InkWell(
+                        onTap: () => _showMinutesPicker(context, false),
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text("$afterMinutes นาที"),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
               SizedBox(height: 30),
 
               // ปุ่มบันทึก
               Center(
-                child: Container(
+                child: SizedBox(
                   width: 200,
                   child: ElevatedButton(
                     onPressed: _saveUserData,
@@ -593,7 +790,7 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
+                      children: const [
                         Icon(Icons.save, color: Colors.white),
                         SizedBox(width: 8),
                         Text(
@@ -608,7 +805,7 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
 
               SizedBox(height: 16),
               Center(
-                child: Container(
+                child: SizedBox(
                   width: 200,
                   child: OutlinedButton.icon(
                     onPressed: _testNotification,
