@@ -9,7 +9,7 @@ import 'dashboard_page.dart';
 import 'notification_service.dart';
 import 'permission_service.dart';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
-
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +29,31 @@ void main() async {
   } catch (e) {
     debugPrint('Application initialization error: $e');
   }
+
+  // === เพิ่มส่วนนี้ ===
+  final flutterLocalNotificationsPlugin = NotificationService().flutterLocalNotificationsPlugin;
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('notification_icon');
+  final InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+  );
+  await flutterLocalNotificationsPlugin.initialize(
+    initializationSettings,
+    onDidReceiveNotificationResponse: (NotificationResponse response) async {
+      // ตรวจสอบ payload
+      if (response.payload != null && response.payload!.startsWith('meal_')) {
+        int mealId = int.parse(response.payload!.split('_')[1]);
+        String mealType = mealId == 1 ? 'breakfast' : mealId == 2 ? 'lunch' : 'dinner';
+        String mealName = mealId == 1 ? 'มื้อเช้า' : mealId == 2 ? 'มื้อเที่ยง' : 'มื้อเย็น';
+        await NotificationService().handleNotificationFired(
+          mealId: mealId,
+          mealType: mealType,
+          mealName: mealName,
+        );
+      }
+    },
+  );
+  // === จบส่วนที่เพิ่ม ===
 
   runApp(const MyApp());
 }

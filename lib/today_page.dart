@@ -347,6 +347,37 @@ Future<void> _updateMealCompletion(String mealType, bool isCompleted) async {
 
     print("✅ Successfully updated meal completion status");
 
+    // หยุดแจ้งเตือน burst เฉพาะมื้อนั้นเมื่อกดทานแล้ว
+    if (isCompleted) {
+      int mealId = mealType == 'breakfast' ? 1 : mealType == 'lunch' ? 2 : 3;
+      await NotificationService().cancelBurstMealNotifications(mealId);
+
+      // ดึง medicationData จาก Firestore user document
+      try {
+        User? user = _auth.currentUser;
+        if (user != null) {
+          DocumentSnapshot userDoc = await _firestore.collection('users').doc(user.uid).get();
+          final medicationData = userDoc.data() != null ? (userDoc.data() as Map<String, dynamic>)['medicationData'] : null;
+          if (medicationData != null &&
+              medicationData['afterMeal'] == true &&
+              medicationData['afterMinutes'] != null &&
+              medicationData['afterMinutes'] > 0) {
+            await NotificationService().scheduleAfterMealMedicationNotification(
+              mealId: mealId,
+              afterMinutes: medicationData['afterMinutes'],
+              mealName: mealType == 'breakfast'
+                  ? 'มื้อเช้า'
+                  : mealType == 'lunch'
+                      ? 'มื้อเที่ยง'
+                      : 'มื้อเย็น',
+            );
+          }
+        }
+      } catch (e) {
+        print('Error fetching medicationData for after meal notification: $e');
+      }
+    }
+
     // แสดงข้อความแจ้งเตือน
     if (mounted) {
       HapticFeedback.lightImpact(); // การสั่นเบา ๆ

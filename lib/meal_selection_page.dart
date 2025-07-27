@@ -113,8 +113,9 @@ class _MealSelectionPageState extends State<MealSelectionPage> {
     // แสดงข้อความแจ้งเตือน
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('เกิดข้อผิดพลาดในการโหลดเมนูอาหาร: ${e.toString()}'),
+        content: Text('เกิดข้อผิดพลาดในการโหลดเมนูอาหาร:  [1m${e.toString()} [0m'),
         duration: const Duration(seconds: 3),
+        backgroundColor: Colors.red,
       ),
     );
   }

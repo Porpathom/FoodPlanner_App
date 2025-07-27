@@ -6,12 +6,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'meal_selection_page.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-
+import 'notification_service.dart';
 
 class MealPlanDisplayPage extends StatefulWidget {
   final bool showAppBar;
   final Function? onBackPressed;
-  final String healthCondition; // เพิ่มพารามิเตอร์นี้
+  final String healthCondition;
 
   const MealPlanDisplayPage({
     super.key,
@@ -150,6 +150,7 @@ class _MealPlanDisplayPageState extends State<MealPlanDisplayPage> {
         const SnackBar(
           content: Text('เกิดข้อผิดพลาดในการเปลี่ยนเมนู'),
           duration: Duration(seconds: 2),
+          backgroundColor: Colors.red,
         ),
       );
     }
@@ -201,6 +202,7 @@ class _MealPlanDisplayPageState extends State<MealPlanDisplayPage> {
                   content: Text(
                       'สร้างแผนอาหารใหม่สำหรับผู้${currentHealthCondition == 'healthy' ? 'ไม่มีโรคประจำตัว' : 'มีสภาวะ $currentHealthCondition'}'),
                   duration: const Duration(seconds: 3),
+                  backgroundColor: Colors.green,
                 ),
               );
             }
@@ -430,6 +432,7 @@ class _MealPlanDisplayPageState extends State<MealPlanDisplayPage> {
           const SnackBar(
             content: Text('กำลังตรวจสอบเมนูอาหาร...'),
             duration: Duration(seconds: 2),
+            backgroundColor: Colors.green,
           ),
         );
 
@@ -489,6 +492,7 @@ class _MealPlanDisplayPageState extends State<MealPlanDisplayPage> {
           const SnackBar(
             content: Text('สร้างแผนอาหารใหม่สำเร็จ'),
             duration: Duration(seconds: 3),
+            backgroundColor: Colors.green,
           ),
         );
       }
@@ -701,12 +705,44 @@ class _MealPlanDisplayPageState extends State<MealPlanDisplayPage> {
           .doc(currentMealPlanId)
           .update({'dailyPlans': updatedDailyPlans});
 
+      // หยุดแจ้งเตือน burst เฉพาะมื้อนั้นเมื่อกดทานแล้ว
+      if (isCompleted) {
+        int mealId = mealType == 'breakfast' ? 1 : mealType == 'lunch' ? 2 : 3;
+        await NotificationService().cancelBurstMealNotifications(mealId);
+
+        // ดึง medicationData จาก Firestore user document
+        try {
+          User? user = _auth.currentUser;
+          if (user != null) {
+            DocumentSnapshot userDoc = await _firestore.collection('users').doc(user.uid).get();
+            final medicationData = userDoc.data() != null ? (userDoc.data() as Map<String, dynamic>)['medicationData'] : null;
+            if (medicationData != null &&
+                medicationData['afterMeal'] == true &&
+                medicationData['afterMinutes'] != null &&
+                medicationData['afterMinutes'] > 0) {
+              await NotificationService().scheduleAfterMealMedicationNotification(
+                mealId: mealId,
+                afterMinutes: medicationData['afterMinutes'],
+                mealName: mealType == 'breakfast'
+                    ? 'มื้อเช้า'
+                    : mealType == 'lunch'
+                        ? 'มื้อเที่ยง'
+                        : 'มื้อเย็น',
+              );
+            }
+          }
+        } catch (e) {
+          print('Error fetching medicationData for after meal notification: $e');
+        }
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(isCompleted
               ? 'บันทึกการทาน${_getMealTypeName(mealType)}สำเร็จ'
               : 'ยกเลิกการทาน${_getMealTypeName(mealType)}สำเร็จ'),
           duration: const Duration(seconds: 2),
+          backgroundColor: isCompleted ? Colors.green : Colors.orange,
         ),
       );
     } catch (e) {

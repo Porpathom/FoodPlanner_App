@@ -128,8 +128,9 @@ class _MealHistoryReportPageState extends State<MealHistoryReportPage>
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('เกิดข้อผิดพลาด: ${e.toString()}'),
+          content: Text('เกิดข้อผิดพลาด:  [1m${e.toString()} [0m'),
           duration: const Duration(seconds: 3),
+          backgroundColor: Colors.red,
         ),
       );
     }
