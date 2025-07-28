@@ -11,6 +11,10 @@ import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'main.dart';
+import 'meal_notification_dialog.dart';
 
 // เพิ่ม pragma annotation สำหรับ class
 @pragma('vm:entry-point')
@@ -40,6 +44,10 @@ class NotificationService {
   // เพิ่ม Set เพื่อติดตาม completed meals วันนี้
   Set<String> _todayCompletedMeals = {};
   String? _lastCompletedDate;
+  
+  // เพิ่ม Firebase instances
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   
  // เพิ่ม StreamController
   final StreamController<NotificationEvent> _notificationController = 
@@ -240,6 +248,7 @@ Future<void> _scheduleAlarmNotification({
   required String body,
   required String time,
   required String payload,
+  bool isMedication = false, // เพิ่มพารามิเตอร์สำหรับยา
 }) async {
   try {
     final timeFormat = DateFormat('hh:mm a');
@@ -261,18 +270,23 @@ Future<void> _scheduleAlarmNotification({
     final tzLocation = tz.local;
     final scheduledTZDateTime = tz.TZDateTime.from(scheduledDate, tzLocation);
 
+    // เลือก notification details ตามประเภท
+    final notificationDetails = isMedication 
+      ? NotificationDetails(android: _createMedicationNotificationDetails())
+      : NotificationDetails(android: _createMealNotificationDetails());
+
     await flutterLocalNotificationsPlugin.zonedSchedule(
       id + 1000,
       title,
       body,
       scheduledTZDateTime,
-      _createAlarmNotificationDetails(),
+      notificationDetails,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
       payload: payload,
     );
 
-    debugPrint('✅ Alarm scheduled for $time with ID $id');
+    debugPrint('✅ ${isMedication ? "Medication" : "Meal"} alarm scheduled for $time with ID $id');
   } catch (e) {
     debugPrint('❌ Error scheduling alarm: $e');
   }
@@ -303,10 +317,86 @@ NotificationDetails _createAlarmNotificationDetails() {
         contentTitle: '⏰ แจ้งเตือน',
         htmlFormatContentTitle: false,
       ),
+      // เพิ่ม Action Buttons
+      actions: [
+        const AndroidNotificationAction(
+          'eat_now',
+          '🍽️ ทานอาหาร',
+          showsUserInterface: true,
+          cancelNotification: false,
+        ),
+        const AndroidNotificationAction(
+          'dismiss',
+          '❌ ปิด',
+          showsUserInterface: false,
+          cancelNotification: true,
+        ),
+      ],
     ),
   );
 }
 
+  // สร้างฟังก์ชันแยกสำหรับแจ้งเตือนยา
+  AndroidNotificationDetails _createMedicationNotificationDetails() {
+    return const AndroidNotificationDetails(
+      'medication_channel',
+      'Medication Notifications',
+      channelDescription: 'แจ้งเตือนสำหรับยา',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      sound: RawResourceAndroidNotificationSound('alarm_sound'),
+      enableVibration: true,
+      enableLights: true,
+      color: Color(0xFF9C27B0), // สีม่วงสำหรับยา
+      icon: 'notification_icon',
+      actions: [
+        AndroidNotificationAction(
+          'eat_now',
+          '💊 ทานยา',
+          showsUserInterface: true,
+          cancelNotification: false,
+        ),
+        AndroidNotificationAction(
+          'dismiss',
+          '❌ ปิด',
+          showsUserInterface: false,
+          cancelNotification: true, // ปิดแจ้งเตือนนั้นทิ้ง
+        ),
+      ],
+    );
+  }
+
+  // สร้างฟังก์ชันแยกสำหรับแจ้งเตือนอาหาร
+  AndroidNotificationDetails _createMealNotificationDetails() {
+    return const AndroidNotificationDetails(
+      'meal_channel',
+      'Meal Notifications',
+      channelDescription: 'แจ้งเตือนสำหรับอาหาร',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      sound: RawResourceAndroidNotificationSound('alarm_sound'),
+      enableVibration: true,
+      enableLights: true,
+      color: Color(0xFF4CAF50), // สีเขียวสำหรับอาหาร
+      icon: 'notification_icon',
+      actions: [
+        AndroidNotificationAction(
+          'eat_now',
+          '🍽️ ทานอาหาร',
+          showsUserInterface: true,
+          cancelNotification: false,
+        ),
+        AndroidNotificationAction(
+          'dismiss',
+          '❌ ปิด',
+          showsUserInterface: false,
+          cancelNotification: true, // ปิดแจ้งเตือนนั้นทิ้ง
+        ),
+      ],
+    );
+  }
 
 
   // เพิ่มฟังก์ชันเช็คว่ามื้อไหนทานแล้วจาก notification หรือไม่
@@ -331,6 +421,7 @@ NotificationDetails _createAlarmNotificationDetails() {
     required String title,
     required String body,
     required String time,
+    bool isMedication = false, // เพิ่มพารามิเตอร์สำหรับยา
   }) async {
     try {
       final timeFormat = DateFormat('hh:mm a');
@@ -352,56 +443,22 @@ NotificationDetails _createAlarmNotificationDetails() {
       final tzLocation = tz.local;
       final scheduledTZDateTime = tz.TZDateTime.from(scheduledDate, tzLocation);
 
+      // เลือก notification details ตามประเภท
+      final notificationDetails = isMedication 
+        ? NotificationDetails(android: _createMedicationNotificationDetails())
+        : NotificationDetails(android: _createMealNotificationDetails());
+
       await flutterLocalNotificationsPlugin.zonedSchedule(
         id + 1000,
         title,
         body,
         scheduledTZDateTime,
-        NotificationDetails(
-          android: AndroidNotificationDetails(
-            'fullscreen_alarm_channel',
-            'Fullscreen Meal Alarms',
-            channelDescription: 'Fullscreen alarm notifications for meal times',
-            importance: Importance.max,
-            priority: Priority.max,
-            playSound: true,
-            sound: RawResourceAndroidNotificationSound('alarm_sound'),
-            enableVibration: true,
-            vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000, 500, 1000]),
-            fullScreenIntent: true,
-            category: AndroidNotificationCategory.alarm,
-            visibility: NotificationVisibility.public,
-            showWhen: true,
-            when: null,
-            usesChronometer: false,
-            chronometerCountDown: false,
-            channelShowBadge: true,
-            onlyAlertOnce: false,
-            autoCancel: true,
-            ongoing: false,
-            silent: false,
-            color: Colors.red,
-            colorized: true,
-            icon: 'notification_icon',
-            largeIcon: DrawableResourceAndroidBitmap('notification_icon'),
-            ticker: '🚨 $title - $body',
-            timeoutAfter: 300000,
-            styleInformation: BigTextStyleInformation(
-              '$body\n\n⏰ กรุณากดเพื่อปิดการแจ้งเตือน',
-              htmlFormatBigText: false,
-              contentTitle: title,
-              htmlFormatContentTitle: false,
-              summaryText: 'เตือนทานอาหาร',
-              htmlFormatSummaryText: false,
-            ),   
-          ),
-        ),
+        notificationDetails,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         matchDateTimeComponents: DateTimeComponents.time,
-        payload: 'meal_$id',
       );
 
-      debugPrint('✅ Fullscreen Alarm scheduled for $time with ID $id');
+      debugPrint('✅ ${isMedication ? "Medication" : "Meal"} fullscreen alarm scheduled for $time');
     } catch (e) {
       debugPrint('❌ Error scheduling fullscreen alarm: $e');
     }
@@ -511,17 +568,11 @@ Future<void> scheduleAllMealNotifications({
         final mealToday = DateTime(now.year, now.month, now.day, mealDateTime.hour, mealDateTime.minute);
         if (mealToday.isAfter(now)) {
           // นัดหมายแจ้งเตือนเฉพาะมื้อนี้ แล้วหยุด
-      await _scheduleMealWithMedication(
+          await _scheduleMealWithMedication(
             mealId: meal['id'] as int,
             mealTime: meal['time'] as String,
             mealName: meal['name'] as String,
-        medicationData: medicationData,
-      );
-          await scheduleRepeatingMealNotification(
-            id: (meal['id'] as int) + 10000,
-            title: '⏰ เตือน${meal['name']}',
-            body: 'ถึงเวลาทาน${meal['name']}แล้ว!',
-            payload: 'meal_${meal['id']}',
+            medicationData: medicationData,
           );
           break; // นัดหมายแค่มื้อแรกที่ยังไม่ถึง
         }
@@ -538,22 +589,35 @@ Future<void> scheduleAfterMealMedicationNotification({
   required int afterMinutes,
   required String mealName,
 }) async {
-  final now = DateTime.now();
-  final scheduledTime = now.add(Duration(minutes: afterMinutes));
-  final tzTime = tz.TZDateTime.from(scheduledTime, tz.local);
+  try {
+    final now = DateTime.now();
+    final afterTime = now.add(Duration(minutes: afterMinutes));
+    final timeFormat = DateFormat('hh:mm a');
+    final afterTimeStr = timeFormat.format(afterTime);
 
-  debugPrint('🔔 [DEBUG] Schedule after-meal med: mealId= [1m$mealId [0m, afterMinutes= [1m$afterMinutes [0m, mealName= [1m$mealName [0m, scheduledTime= [1m$scheduledTime [0m');
+    // ตั้งแจ้งเตือนหลัก
+    await _scheduleAlarmNotification(
+      id: mealId * 100 + 99, // ใช้ ID เฉพาะสำหรับยาหลังอาหาร
+      title: '💊 ยาหลังอาหาร - $mealName',
+      body: 'ถึงเวลาทานยาหลัง$mealName $afterMinutes นาทีแล้ว!',
+      time: afterTimeStr,
+      payload: 'medication_after_$mealId',
+      isMedication: true, // ระบุว่าเป็นยา
+    );
 
-  await flutterLocalNotificationsPlugin.zonedSchedule(
-    mealId * 100 + 99, // ใช้ id เฉพาะสำหรับแจ้งเตือนยาหลังอาหาร
-    '💊 ทานยาหลัง$mealName',
-    'ถึงเวลาทานยาหลัง$mealName $afterMinutes นาที',
-    tzTime,
-    _createAlarmNotificationDetails(),
-    androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-    matchDateTimeComponents: null,
-    payload: 'medication_after_$mealId',
-  );
+    // เริ่มแจ้งเตือนซ้ำทันที
+    await scheduleRepeatingMealNotification(
+      id: mealId * 100 + 9999, // ใช้ ID เฉพาะสำหรับยาหลังอาหารซ้ำ
+      title: '💊 ยาหลังอาหาร - $mealName',
+      body: 'ถึงเวลาทานยาหลัง$mealName $afterMinutes นาทีแล้ว!',
+      payload: 'medication_after_$mealId',
+      isMedication: true, // ระบุว่าเป็นยา
+    );
+
+    debugPrint('💊 Scheduled after-meal medication notification for $mealName');
+  } catch (e) {
+    debugPrint('❌ Error scheduling after-meal medication: $e');
+  }
 }
 
 // ปรับ _scheduleMealWithMedication: ไม่ต้อง schedule แจ้งเตือนยาหลังอาหารทันที
@@ -564,101 +628,133 @@ Future<void> _scheduleMealWithMedication({
   required Map<String, dynamic> medicationData,
 }) async {
   try {
-    // ตั้งเวลามื้ออาหารหลัก
-    await _scheduleAlarmNotification(
-      id: mealId,
-      title: '⏰ เตือน$mealName',
-      body: 'ถึงเวลาทาน$mealNameแล้ว!',
-      time: mealTime,
-      payload: 'meal_$mealId',
-    );
-    // *** ไม่ต้อง scheduleRepeatingMealNotification ที่นี่ ***
-    // จะไป schedule เฉพาะเมื่อ notification แรกถูก trigger (ดูฟังก์ชัน handleNotificationFired ด้านล่าง)
-
-    // ตรวจสอบว่ามียาที่ต้องทานหรือไม่
-    if (medicationData['hasMedication'] == true) {
+    // ตรวจสอบว่ามียาที่ต้องทานก่อนอาหารหรือไม่
+    if (medicationData['hasMedication'] == true && 
+        medicationData['beforeMeal'] == true && 
+        medicationData['beforeMinutes'] > 0) {
+      
+      // แจ้งเตือนยาก่อนอาหารแบบซ้ำๆ
       final timeFormat = DateFormat('hh:mm a');
       final parsedTime = timeFormat.parse(mealTime);
-
-      // แจ้งเตือนก่อนอาหาร (ถ้ามี)
-      if (medicationData['beforeMeal'] == true && medicationData['beforeMinutes'] > 0) {
-        final beforeTime = parsedTime.subtract(Duration(minutes: medicationData['beforeMinutes']));
-        final beforeTimeStr = timeFormat.format(beforeTime);
-        
-        await _scheduleAlarmNotification(
-          id: mealId * 10 + 1, // ใช้ ID ที่ต่างกัน
-          title: '💊 ทานยาก่อน$mealName',
-          body: 'ถึงเวลาทานยาก่อน$mealName ${medicationData['beforeMinutes']} นาที',
-          time: beforeTimeStr,
-          payload: 'medication_before_$mealId',
-        );
-      }
-      // *** ไม่ต้อง schedule แจ้งเตือนยาหลังอาหารที่นี่ ***
+      final beforeTime = parsedTime.subtract(Duration(minutes: medicationData['beforeMinutes']));
+      final beforeTimeStr = timeFormat.format(beforeTime);
+      
+      await _scheduleAlarmNotification(
+        id: mealId * 10 + 1, // ใช้ ID เฉพาะสำหรับยาก่อนอาหาร
+        title: '💊 ยาก่อนอาหาร - $mealName',
+        body: 'ถึงเวลาทานยาก่อน$mealName ${medicationData['beforeMinutes']} นาทีแล้ว!',
+        time: beforeTimeStr,
+        payload: 'medication_before_$mealId',
+        isMedication: true, // ระบุว่าเป็นยา
+      );
+      
+      // เริ่มแจ้งเตือนยาก่อนอาหารแบบซ้ำๆ
+      await scheduleRepeatingMealNotification(
+        id: mealId * 10 + 10000, // ใช้ ID เฉพาะสำหรับยาก่อนอาหารซ้ำ
+        title: '💊 ยาก่อนอาหาร - $mealName',
+        body: 'ถึงเวลาทานยาก่อน$mealName ${medicationData['beforeMinutes']} นาทีแล้ว!',
+        payload: 'medication_before_$mealId',
+        isMedication: true, // ระบุว่าเป็นยา
+      );
+      
+      debugPrint('💊 Scheduled before-meal medication notification for $mealName');
+      
+    } else {
+      // ไม่มียาก่อนอาหาร ตั้งแจ้งเตือนอาหารทันที
+      await _scheduleMealNotification(mealId, mealTime, mealName);
     }
   } catch (e) {
     debugPrint('❌ Error scheduling meal with medication: $e');
   }
 }
 
-// ฟังก์ชันนี้ควรถูกเรียกเมื่อ notification แรกของมื้อนั้นถูก trigger (เช่นใน onDidReceiveNotificationResponse หรือ background handler)
-Future<void> handleNotificationFired({
-  required int mealId,
-  required String mealType,
-  required String mealName,
-}) async {
-  // ถ้ายังไม่กดกินข้าว ให้เริ่มแจ้งเตือนซ้ำทุก 1 นาที เฉพาะมื้อนั้น
-  if (!await isMealCompleted(mealType)) {
-    await scheduleRepeatingMealNotification(
-      id: mealId + 10000, // ใช้ id เฉพาะของมื้อนั้น
-      title: '⏰ เตือน$mealName',
-      body: 'ถึงเวลาทาน$mealNameแล้ว!',
+// เพิ่มฟังก์ชันใหม่สำหรับตั้งแจ้งเตือนอาหาร
+  Future<void> _scheduleMealNotification(int mealId, String mealTime, String mealName) async {
+    // ตั้งเวลามื้ออาหารหลัก
+    await _scheduleAlarmNotification(
+      id: mealId,
+      title: '🍽️ อาหาร - $mealName',
+      body: 'ถึงเวลาทาน$mealNameแล้ว! กรุณาทานอาหาร',
+      time: mealTime,
       payload: 'meal_$mealId',
+      isMedication: false, // ระบุว่าเป็นอาหาร
     );
-    debugPrint('🔁 Start repeating notification for $mealName');
+    
+    // เริ่มแจ้งเตือนซ้ำทันที (ไม่ต้องรอกดที่แจ้งเตือน)
+    await scheduleRepeatingMealNotification(
+      id: mealId + 10000, // ใช้ ID เฉพาะสำหรับอาหารซ้ำ
+      title: '🍽️ อาหาร - $mealName',
+      body: 'ถึงเวลาทาน$mealNameแล้ว! กรุณาทานอาหาร',
+      payload: 'meal_$mealId',
+      isMedication: false, // ระบุว่าเป็นอาหาร
+    );
+    
+    debugPrint('🍽️ Scheduled meal notification for $mealName');
   }
-}
+
+// ฟังก์ชันนี้ไม่ใช้แล้ว เพราะแจ้งเตือนซ้ำเริ่มทันทีตั้งแต่ตอนตั้งเวลา
+// Future<void> handleNotificationFired({
+//   required int mealId,
+//   required String mealType,
+//   required String mealName,
+// }) async {
+//   // ถ้ายังไม่กดกินข้าว ให้เริ่มแจ้งเตือนซ้ำทุก 1 นาที เฉพาะมื้อนั้น
+//   if (!await isMealCompleted(mealType)) {
+//     await scheduleRepeatingMealNotification(
+//       id: mealId + 10000, // ใช้ id เฉพาะของมื้อนั้น
+//       title: '⏰ เตือน$mealName',
+//       body: 'ถึงเวลาทาน$mealNameแล้ว!',
+//       payload: 'meal_$mealId',
+//     );
+//     debugPrint('🔁 Start repeating notification for $mealName');
+//   }
+// }
 
 // ฟังก์ชันนี้ควรถูกเรียกเมื่อผู้ใช้กดกินข้าวในแอป (เพื่อหยุดแจ้งเตือนซ้ำของมื้อนั้น)
 Future<void> cancelRepeatingMealNotification(int mealId) async {
   try {
+    // ยกเลิกแจ้งเตือนซ้ำของมื้ออาหาร
     await flutterLocalNotificationsPlugin.cancel(mealId + 10000);
-    debugPrint('🛑 Cancelled repeating notification for mealId $mealId');
+    // ยกเลิกแจ้งเตือนซ้ำของยาก่อนอาหาร
+    await flutterLocalNotificationsPlugin.cancel(mealId * 10 + 10000);
+    debugPrint('🛑 Cancelled repeating notifications for mealId $mealId');
   } catch (e) {
     debugPrint('❌ Error cancelling repeating notification: $e');
   }
 }
 
-Future<void> scheduleRepeatingMealNotification({
-  required int id,
-  required String title,
-  required String body,
-  required String payload,
-  DateTime? startTime, // เพิ่ม parameter สำหรับ burst schedule
-}) async {
-  try {
-    if (startTime != null) {
-      // ถ้าใส่ startTime ให้รอจนถึงเวลานั้นก่อนค่อยเริ่ม burst
-      final now = DateTime.now();
-      final delay = startTime.difference(now);
-      if (delay.isNegative) {
-        // ถ้าเลยเวลาแล้ว ให้เริ่ม burst ทันที
-        await _startBurstNotification(id, title, body, payload);
-      } else {
-        Future.delayed(delay, () async {
-          await _startBurstNotification(id, title, body, payload);
-        });
-      }
-    } else {
-      // เริ่ม burst ทันที
-      await _startBurstNotification(id, title, body, payload);
+  // ปรับปรุงฟังก์ชัน scheduleRepeatingMealNotification
+  Future<void> scheduleRepeatingMealNotification({
+    required int id,
+    required String title,
+    required String body,
+    required String payload,
+    bool isMedication = false, // เพิ่มพารามิเตอร์สำหรับยา
+  }) async {
+    try {
+      // เลือก notification details ตามประเภท
+      final notificationDetails = isMedication 
+        ? _createMedicationNotificationDetails()
+        : _createMealNotificationDetails();
+      
+      await flutterLocalNotificationsPlugin.periodicallyShow(
+        id,
+        title,
+        body,
+        RepeatInterval.everyMinute,
+        NotificationDetails(android: notificationDetails),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        payload: payload,
+      );
+      
+      debugPrint('🔄 Started repeating ${isMedication ? "medication" : "meal"} notification: $title');
+    } catch (e) {
+      debugPrint('❌ Error starting repeating notification: $e');
     }
-    debugPrint('✅ Repeating notification scheduled for $title');
-  } catch (e) {
-    debugPrint('❌ Error scheduling repeating notification: $e');
   }
-}
 
 Future<void> _startBurstNotification(int id, String title, String body, String payload) async {
+  // ใช้ periodicallyShow เพื่อแจ้งเตือนซ้ำทุก 1 นาทีทันที
   await flutterLocalNotificationsPlugin.periodicallyShow(
     id,
     title,
@@ -668,6 +764,7 @@ Future<void> _startBurstNotification(int id, String title, String body, String p
     androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     payload: payload,
   );
+  debugPrint('🔄 Burst notification started for $title - will repeat every minute');
 }
 
 
@@ -681,6 +778,33 @@ Future<void> _startBurstNotification(int id, String title, String body, String p
       debugPrint('✅ Test alarm sent');
     } catch (e) {
       debugPrint('❌ Error sending test alarm: $e');
+    }
+  }
+
+  // เพิ่มฟังก์ชันแสดง dialog ทันทีสำหรับมื้ออาหาร
+  Future<void> showMealDialog({
+    required int mealId,
+    required String mealName,
+    required String mealTime,
+  }) async {
+    try {
+      // ตรวจสอบว่าแอปเปิดอยู่หรือไม่
+      if (MyApp.navigatorKey.currentContext != null) {
+        showDialog(
+          context: MyApp.navigatorKey.currentContext!,
+          barrierDismissible: false,
+          builder: (context) => MealNotificationDialog(
+            mealId: mealId,
+            mealName: mealName,
+            mealTime: mealTime,
+          ),
+        );
+        debugPrint('✅ Meal dialog shown for $mealName');
+      } else {
+        debugPrint('❌ App context not available');
+      }
+    } catch (e) {
+      debugPrint('❌ Error showing meal dialog: $e');
     }
   }
 
@@ -759,6 +883,157 @@ Future<void> _startBurstNotification(int id, String title, String body, String p
       debugPrint('🛑 Cancelled burst/repeating notifications for mealId $mealId');
     } catch (e) {
       debugPrint('❌ Error cancelling burst/repeating notifications: $e');
+    }
+  }
+
+  // เพิ่มฟังก์ชันอัปเดตสถานะการทานอาหารในฐานข้อมูล
+  Future<void> updateMealCompletionInDatabase(int mealId, bool isCompleted) async {
+    try {
+      User? user = _auth.currentUser;
+      if (user == null) {
+        debugPrint('❌ No user logged in');
+        return;
+      }
+
+      // แปลง mealId เป็น mealType
+      String mealType = mealId == 1 ? 'breakfast' : mealId == 2 ? 'lunch' : 'dinner';
+      
+      // หาวันปัจจุบัน
+      DateTime today = DateTime.now();
+      
+      // ดึงแผนอาหารปัจจุบัน
+      QuerySnapshot mealPlanQuery = await _firestore
+          .collection('mealPlans')
+          .where('userId', isEqualTo: user.uid)
+          .where('isActive', isEqualTo: true)
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .get();
+
+      if (mealPlanQuery.docs.isEmpty) {
+        debugPrint('❌ No active meal plan found');
+        return;
+      }
+
+      DocumentSnapshot mealPlanDoc = mealPlanQuery.docs.first;
+      String mealPlanId = mealPlanDoc.id;
+      Map<String, dynamic> mealPlanData = mealPlanDoc.data() as Map<String, dynamic>;
+
+      // หาวันที่ตรงกับวันปัจจุบันในแผนอาหาร
+      List<dynamic> dailyPlans = mealPlanData['dailyPlans'];
+      int dayIndex = -1;
+      
+      for (int i = 0; i < dailyPlans.length; i++) {
+        DateTime planDate = (dailyPlans[i]['date'] as Timestamp).toDate();
+        if (DateUtils.isSameDay(planDate, today)) {
+          dayIndex = i;
+          break;
+        }
+      }
+
+      if (dayIndex == -1) {
+        debugPrint('❌ Today not found in meal plan');
+        return;
+      }
+
+      // อัปเดตสถานะการทานอาหาร
+      List<dynamic> updatedDailyPlans = List.from(dailyPlans);
+      updatedDailyPlans[dayIndex]['completed'][mealType] = isCompleted;
+
+      // บันทึกลงฐานข้อมูล
+      await _firestore
+          .collection('mealPlans')
+          .doc(mealPlanId)
+          .update({'dailyPlans': updatedDailyPlans});
+
+      debugPrint('✅ Updated meal completion: $mealType = $isCompleted');
+
+      // อัปเดตสถานะใน SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      final todayStr = DateFormat('yyyy-MM-dd').format(today);
+      await prefs.setBool('${mealType}_completed_$todayStr', isCompleted);
+
+      // ถ้าทานแล้ว ให้หยุดแจ้งเตือนซ้ำ
+      if (isCompleted) {
+        await cancelBurstMealNotifications(mealId);
+        
+        // ตรวจสอบว่าต้องแจ้งเตือนยาหลังอาหารหรือไม่
+        try {
+          DocumentSnapshot userDoc = await _firestore.collection('users').doc(user.uid).get();
+          final medicationData = userDoc.data() != null ? (userDoc.data() as Map<String, dynamic>)['medicationData'] : null;
+          if (medicationData != null &&
+              medicationData['afterMeal'] == true &&
+              medicationData['afterMinutes'] != null &&
+              medicationData['afterMinutes'] > 0) {
+            String mealName = mealId == 1 ? 'มื้อเช้า' : mealId == 2 ? 'มื้อเที่ยง' : 'มื้อเย็น';
+            await scheduleAfterMealMedicationNotification(
+              mealId: mealId,
+              afterMinutes: medicationData['afterMinutes'],
+              mealName: mealName,
+            );
+          }
+        } catch (e) {
+          debugPrint('Error scheduling after meal medication: $e');
+        }
+      }
+
+    } catch (e) {
+      debugPrint('❌ Error updating meal completion in database: $e');
+    }
+  }
+
+  // เพิ่มฟังก์ชันสำหรับจัดการการตอบสนองจากแจ้งเตือนยาก่อนอาหาร
+  Future<void> handleBeforeMealMedicationResponse(int mealId, String mealName) async {
+    try {
+      // หยุดแจ้งเตือนยาก่อนอาหารทั้งหมด
+      await cancelAllMedicationNotifications(mealId);
+      
+      // เริ่มแจ้งเตือนอาหารทันที
+      final now = DateTime.now();
+      final mealTime = DateFormat('hh:mm a').format(now);
+      
+      await _scheduleMealNotification(mealId, mealTime, mealName);
+      
+      debugPrint('✅ Started meal notification after before-meal medication for $mealName');
+    } catch (e) {
+      debugPrint('❌ Error handling before-meal medication response: $e');
+    }
+  }
+
+  // เพิ่มฟังก์ชันสำหรับจัดการการตอบสนองจากแจ้งเตือนยาหลังอาหาร
+  Future<void> handleAfterMealMedicationResponse(int mealId, String mealName) async {
+    try {
+      // หยุดแจ้งเตือนยาหลังอาหารทั้งหมด
+      await cancelAllMedicationNotifications(mealId);
+      
+      debugPrint('✅ Stopped after-meal medication notification for $mealName');
+    } catch (e) {
+      debugPrint('❌ Error handling after-meal medication response: $e');
+    }
+  }
+
+  // เพิ่มฟังก์ชันสำหรับยกเลิกแจ้งเตือนยาทั้งหมด
+  Future<void> cancelAllMedicationNotifications(int mealId) async {
+    try {
+      // ยกเลิกแจ้งเตือนยาก่อนอาหาร
+      await flutterLocalNotificationsPlugin.cancel(mealId * 10 + 1);
+      await flutterLocalNotificationsPlugin.cancel(mealId * 10 + 10000);
+      await flutterLocalNotificationsPlugin.cancel(mealId * 10 + 1000);
+      await flutterLocalNotificationsPlugin.cancel(mealId * 10);
+      await flutterLocalNotificationsPlugin.cancel(mealId * 10 + 2);
+      await flutterLocalNotificationsPlugin.cancel(mealId * 10 + 3);
+      
+      // ยกเลิกแจ้งเตือนยาหลังอาหาร
+      await flutterLocalNotificationsPlugin.cancel(mealId * 100 + 99);
+      await flutterLocalNotificationsPlugin.cancel(mealId * 100 + 9999);
+      await flutterLocalNotificationsPlugin.cancel(mealId * 100 + 1000);
+      await flutterLocalNotificationsPlugin.cancel(mealId * 100);
+      await flutterLocalNotificationsPlugin.cancel(mealId * 100 + 98);
+      await flutterLocalNotificationsPlugin.cancel(mealId * 100 + 97);
+      
+      debugPrint('🛑 Cancelled all medication notifications for mealId $mealId');
+    } catch (e) {
+      debugPrint('❌ Error cancelling all medication notifications: $e');
     }
   }
 }

@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'firebase_options.dart';
 import 'home_page.dart';
 import 'dashboard_page.dart';
 import 'notification_service.dart';
 import 'permission_service.dart';
+import 'meal_notification_dialog.dart';
+import 'medication_notification_dialog.dart';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -45,14 +48,141 @@ void main() async {
         int mealId = int.parse(response.payload!.split('_')[1]);
         String mealType = mealId == 1 ? 'breakfast' : mealId == 2 ? 'lunch' : 'dinner';
         String mealName = mealId == 1 ? 'มื้อเช้า' : mealId == 2 ? 'มื้อเที่ยง' : 'มื้อเย็น';
-        await NotificationService().handleNotificationFired(
-          mealId: mealId,
-          mealType: mealType,
-          mealName: mealName,
-        );
+        
+        // ตรวจสอบ action ที่กด
+        if (response.actionId == 'eat_now') {
+          // แสดง dialog สำหรับทานอาหาร
+          if (MyApp.navigatorKey.currentContext != null) {
+            showDialog(
+              context: MyApp.navigatorKey.currentContext!,
+              barrierDismissible: false,
+              builder: (context) => MealNotificationDialog(
+                mealId: mealId,
+                mealName: mealName,
+                mealTime: DateFormat('hh:mm a').format(DateTime.now()),
+              ),
+            );
+          }
+        } else if (response.actionId == 'dismiss') {
+          // กดปิดแจ้งเตือนอาหาร
+          debugPrint('🛑 User dismissed meal notification for $mealName');
+        } else {
+          // การตอบสนองปกติ (กดที่ notification) - แสดง dialog เหมือนกดปุ่มทานอาหาร
+          if (MyApp.navigatorKey.currentContext != null) {
+            showDialog(
+              context: MyApp.navigatorKey.currentContext!,
+              barrierDismissible: false,
+              builder: (context) => MealNotificationDialog(
+                mealId: mealId,
+                mealName: mealName,
+                mealTime: DateFormat('hh:mm a').format(DateTime.now()),
+              ),
+            );
+          }
+          debugPrint('📱 User tapped notification for $mealName - showing dialog');
+        }
+      } else if (response.payload != null && response.payload!.startsWith('medication_before_')) {
+        // แจ้งเตือนยาก่อนอาหาร
+        int mealId = int.parse(response.payload!.split('_')[2]);
+        String mealName = mealId == 1 ? 'มื้อเช้า' : mealId == 2 ? 'มื้อเที่ยง' : 'มื้อเย็น';
+        
+        if (response.actionId == 'eat_now') {
+          // กดทานยาก่อนอาหาร - แสดง dialog
+          if (MyApp.navigatorKey.currentContext != null) {
+            showDialog(
+              context: MyApp.navigatorKey.currentContext!,
+              barrierDismissible: false,
+              builder: (context) => MedicationNotificationDialog(
+                mealId: mealId,
+                mealName: 'ยาก่อน$mealName',
+                mealTime: DateFormat('hh:mm a').format(DateTime.now()),
+                isBeforeMeal: true,
+              ),
+            );
+          }
+        } else if (response.actionId == 'dismiss') {
+          // กดปิดแจ้งเตือนยาก่อนอาหาร
+          debugPrint('🛑 User dismissed before-meal medication notification for $mealName');
+        } else {
+          // กดที่แจ้งเตือนยาก่อนอาหาร
+          if (MyApp.navigatorKey.currentContext != null) {
+            showDialog(
+              context: MyApp.navigatorKey.currentContext!,
+              barrierDismissible: false,
+              builder: (context) => MedicationNotificationDialog(
+                mealId: mealId,
+                mealName: 'ยาก่อน$mealName',
+                mealTime: DateFormat('hh:mm a').format(DateTime.now()),
+                isBeforeMeal: true,
+              ),
+            );
+          }
+        }
+      } else if (response.payload != null && response.payload!.startsWith('medication_after_')) {
+        // แจ้งเตือนยาหลังอาหาร
+        int mealId = int.parse(response.payload!.split('_')[2]);
+        String mealName = mealId == 1 ? 'มื้อเช้า' : mealId == 2 ? 'มื้อเที่ยง' : 'มื้อเย็น';
+        
+        if (response.actionId == 'eat_now') {
+          // กดทานยาหลังอาหาร - แสดง dialog
+          if (MyApp.navigatorKey.currentContext != null) {
+            showDialog(
+              context: MyApp.navigatorKey.currentContext!,
+              barrierDismissible: false,
+              builder: (context) => MedicationNotificationDialog(
+                mealId: mealId,
+                mealName: 'ยาหลัง$mealName',
+                mealTime: DateFormat('hh:mm a').format(DateTime.now()),
+                isBeforeMeal: false,
+              ),
+            );
+          }
+        } else if (response.actionId == 'dismiss') {
+          // กดปิดแจ้งเตือนยาหลังอาหาร
+          debugPrint('🛑 User dismissed after-meal medication notification for $mealName');
+        } else {
+          // กดที่แจ้งเตือนยาหลังอาหาร
+          if (MyApp.navigatorKey.currentContext != null) {
+            showDialog(
+              context: MyApp.navigatorKey.currentContext!,
+              barrierDismissible: false,
+              builder: (context) => MedicationNotificationDialog(
+                mealId: mealId,
+                mealName: 'ยาหลัง$mealName',
+                mealTime: DateFormat('hh:mm a').format(DateTime.now()),
+                isBeforeMeal: false,
+              ),
+            );
+          }
+        }
       }
     },
   );
+
+  // สร้าง notification channels
+  const AndroidNotificationChannel mealChannel = AndroidNotificationChannel(
+    'meal_channel',
+    'Meal Notifications',
+    description: 'แจ้งเตือนสำหรับอาหาร',
+    importance: Importance.max,
+  );
+
+  const AndroidNotificationChannel medicationChannel = AndroidNotificationChannel(
+    'medication_channel',
+    'Medication Notifications',
+    description: 'แจ้งเตือนสำหรับยา',
+    importance: Importance.max,
+  );
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(mealChannel);
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(medicationChannel);
   // === จบส่วนที่เพิ่ม ===
 
   runApp(const MyApp());

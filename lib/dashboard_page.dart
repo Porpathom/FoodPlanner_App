@@ -7,6 +7,7 @@ import 'menu_plan_page.dart';
 import 'raw_materials_page.dart';
 import 'profile_page.dart';
 import 'meal_history_report_page.dart'; // เพิ่ม import สำหรับหน้ารายงาน
+import 'notification_test_page.dart'; // เพิ่ม import สำหรับหน้าทดสอบ
 
 class DashboardPage extends StatefulWidget {
   @override
@@ -51,8 +52,15 @@ class _DashboardPageState extends State<DashboardPage> {
           IconButton(
             icon: const Icon(Icons.notifications),
             onPressed: () {
-              // แสดงการแจ้งเตือน
+              // นำไปยังหน้าทดสอบการแจ้งเตือน
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NotificationTestPage(),
+                ),
+              );
             },
+            tooltip: 'ทดสอบการแจ้งเตือน',
           ),
           const SizedBox(width: 10),
         ],
