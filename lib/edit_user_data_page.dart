@@ -13,6 +13,8 @@ class EditUserDataPage extends StatefulWidget {
   final String medicalCondition;
   final Map<String, dynamic>? medicationData; // Changed to accept medication data map
   final Function(String)? onMedicalConditionUpdated;
+  final double? weight; // กิโลกรัม
+  final double? height; // เซนติเมตร
 
   EditUserDataPage({
     required this.breakfastTime,
@@ -21,6 +23,8 @@ class EditUserDataPage extends StatefulWidget {
     required this.medicalCondition,
     this.medicationData,
     this.onMedicalConditionUpdated,
+    this.weight,
+    this.height,
   });
 
   @override
@@ -33,6 +37,8 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
   late String dinnerTime;
   String selectedMedicalCondition = 'โรคเบาหวาน';
   bool hasMedication = false;
+  late final TextEditingController weightController;
+  late final TextEditingController heightController;
   
   // New medication time fields
   bool beforeMeal = false;
@@ -95,6 +101,11 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
       afterMinutes = widget.medicationData!['afterMinutes'] ?? 30;
     }
 
+    weightController = TextEditingController(
+        text: widget.weight != null ? widget.weight!.toString() : '');
+    heightController = TextEditingController(
+        text: widget.height != null ? widget.height!.toString() : '');
+
     _checkCurrentMealPlan();
     _initializeNotificationService();
   }
@@ -150,6 +161,13 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
         ),
       );
     }
+  }
+
+  @override
+  void dispose() {
+    weightController.dispose();
+    heightController.dispose();
+    super.dispose();
   }
 
   // แปลงเวลาจากสตริงให้เป็น TimeOfDay
@@ -284,6 +302,11 @@ Future<void> _saveUserData() async {
         'afterMinutes': afterMinutes,
       };
 
+      double? parsedWeight =
+          weightController.text.trim().isEmpty ? null : double.tryParse(weightController.text.trim());
+      double? parsedHeight =
+          heightController.text.trim().isEmpty ? null : double.tryParse(heightController.text.trim());
+
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'breakfastTime': breakfastTime,
         'lunchTime': lunchTime,
@@ -291,6 +314,8 @@ Future<void> _saveUserData() async {
         'suitableFor': suitableFor,
         'medicalCondition': selectedMedicalCondition,
         'medicationData': medicationData,
+        'weight': parsedWeight,
+        'height': parsedHeight,
       }, SetOptions(merge: true));
 
       try {
@@ -659,6 +684,54 @@ Future<void> _saveUserData() async {
                       
                       SizedBox(height: 20),
                       
+                      // น้ำหนักและส่วนสูง
+                      Text(
+                        "น้ำหนัก (กิโลกรัม)",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      TextField(
+                        controller: weightController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          hintText: "เช่น 68.5",
+                          prefixIcon: Icon(Icons.monitor_weight, color: Colors.grey.shade700),
+                          suffixText: "กก.",
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      Text(
+                        "ส่วนสูง (เซนติเมตร)",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      TextField(
+                        controller: heightController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          hintText: "เช่น 172",
+                          prefixIcon: Icon(Icons.height, color: Colors.grey.shade700),
+                          suffixText: "ซม.",
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+                        ),
+                      ),
+                      SizedBox(height: 20),
+                      
                       // ส่วนเพิ่มเติมสำหรับเวลาทานยา
    Text(
                 "มียาที่ต้องรับประทานหรือไม่?",
@@ -804,29 +877,7 @@ Future<void> _saveUserData() async {
               ),
 
               SizedBox(height: 16),
-              Center(
-                child: SizedBox(
-                  width: 200,
-                  child: OutlinedButton.icon(
-                    onPressed: _testNotification,
-                    icon:
-                        Icon(Icons.notifications_active, color: Colors.orange),
-                    label: Text(
-                      "ทดสอบการแจ้งเตือน",
-                      style: TextStyle(fontSize: 14),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      side: BorderSide(color: Colors.orange.shade300),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              SizedBox(height: 20),
+              
             ],
           ),
         ),

@@ -148,6 +148,12 @@ Future<void> _navigateToEditPage() async {
           'beforeMinutes': 30,
           'afterMinutes': 30,
         },
+        weight: (userData?['weight'] is num)
+            ? (userData?['weight'] as num).toDouble()
+            : null,
+        height: (userData?['height'] is num)
+            ? (userData?['height'] as num).toDouble()
+            : null,
       ),
     ),
   );
@@ -316,7 +322,28 @@ Future<void> _navigateToEditPage() async {
     String lunchTime = userData!['lunchTime'] ?? 'ไม่มีข้อมูล';
     String dinnerTime = userData!['dinnerTime'] ?? 'ไม่มีข้อมูล';
     String medicalCondition = userData!['medicalCondition'] ?? 'ไม่มีข้อมูล';
-    String medicationTime = userData!['medicationTime'] ?? 'ไม่มีข้อมูล';
+    final double? weight = (userData!['weight'] is num)
+        ? (userData!['weight'] as num).toDouble()
+        : null;
+    final double? height = (userData!['height'] is num)
+        ? (userData!['height'] as num).toDouble()
+        : null;
+    String medicationText = 'ไม่มีการทานยา';
+    if (userData!['medicationData'] is Map<String, dynamic>) {
+      final Map<String, dynamic> md =
+          userData!['medicationData'] as Map<String, dynamic>;
+      final bool hasMedication = md['hasMedication'] == true;
+      if (hasMedication) {
+        List<String> parts = [];
+        if (md['beforeMeal'] == true) {
+          parts.add('ก่อนอาหาร ${md['beforeMinutes'] ?? 0} นาที');
+        }
+        if (md['afterMeal'] == true) {
+          parts.add('หลังอาหาร ${md['afterMinutes'] ?? 0} นาที');
+        }
+        medicationText = parts.isEmpty ? 'ไม่มีการทานยา' : parts.join('  ');
+      }
+    }
 
 
     return SingleChildScrollView(
@@ -480,6 +507,50 @@ Future<void> _navigateToEditPage() async {
             ],
           ),
         ),
+        // น้ำหนัก
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: Color.fromARGB(255, 213, 210, 210)),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.monitor_weight, color: Colors.blueGrey, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                weight != null
+                    ? '${weight % 1 == 0 ? weight.toStringAsFixed(0) : weight.toStringAsFixed(1)} กก.'
+                    : 'ยังไม่มีข้อมูล',
+                style: const TextStyle(fontSize: 16),
+              ),
+            ],
+          ),
+        ),
+        // ส่วนสูง
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: Color.fromARGB(255, 213, 210, 210)),
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.height, color: Colors.blueGrey, size: 22),
+              const SizedBox(width: 8),
+              Text(
+                height != null
+                    ? '${height % 1 == 0 ? height.toStringAsFixed(0) : height.toStringAsFixed(1)} ซม.'
+                    : 'ยังไม่มีข้อมูล',
+                style: const TextStyle(fontSize: 16),
+              ),
+            ],
+          ),
+        ),
         // เพิ่มข้อมูลเวลาทานยา
         Container(
           width: double.infinity,
@@ -497,7 +568,7 @@ Future<void> _navigateToEditPage() async {
                   color: Colors.green, size: 22),
               const SizedBox(width: 8),
               Text(
-                medicationTime,
+                medicationText,
                 style: const TextStyle(fontSize: 16),
               ),
             ],

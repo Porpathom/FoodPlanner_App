@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -164,7 +165,33 @@ class NotificationService {
       }
       
 
-      // สร้าง fullscreen alarm channel เท่านั้น
+      // สร้าง notification channels สำหรับแต่ละประเภท
+      AndroidNotificationChannel mealChannel =
+          const AndroidNotificationChannel(
+        'meal_channel',
+        'Meal Notifications',
+        description: 'แจ้งเตือนสำหรับอาหาร',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        showBadge: true,
+        enableLights: true,
+        ledColor: Colors.green,
+      );
+
+      AndroidNotificationChannel medicationChannel =
+          const AndroidNotificationChannel(
+        'medication_channel',
+        'Medication Notifications',
+        description: 'แจ้งเตือนสำหรับยา',
+        importance: Importance.max,
+        playSound: true,
+        enableVibration: true,
+        showBadge: true,
+        enableLights: true,
+        ledColor: Colors.purple,
+      );
+
       AndroidNotificationChannel fullscreenChannel =
           const AndroidNotificationChannel(
         'fullscreen_alarm_channel',
@@ -178,6 +205,17 @@ class NotificationService {
         ledColor: Colors.red,
         sound: RawResourceAndroidNotificationSound('alarm_sound'),
       );
+
+      // สร้าง channels ทั้งหมด
+      await flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(mealChannel);
+
+      await flutterLocalNotificationsPlugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(medicationChannel);
 
       await flutterLocalNotificationsPlugin
           .resolvePlatformSpecificImplementation<
@@ -272,8 +310,8 @@ Future<void> _scheduleAlarmNotification({
 
     // เลือก notification details ตามประเภท
     final notificationDetails = isMedication 
-      ? NotificationDetails(android: _createMedicationNotificationDetails())
-      : NotificationDetails(android: _createMealNotificationDetails());
+              ? NotificationDetails(android: createMedicationNotificationDetails())
+        : NotificationDetails(android: createMealNotificationDetails());
 
     await flutterLocalNotificationsPlugin.zonedSchedule(
       id + 1000,
@@ -337,19 +375,31 @@ NotificationDetails _createAlarmNotificationDetails() {
 }
 
   // สร้างฟังก์ชันแยกสำหรับแจ้งเตือนยา
-  AndroidNotificationDetails _createMedicationNotificationDetails() {
-    return const AndroidNotificationDetails(
+  AndroidNotificationDetails createMedicationNotificationDetails() {
+    return AndroidNotificationDetails(
       'medication_channel',
       'Medication Notifications',
       channelDescription: 'แจ้งเตือนสำหรับยา',
       importance: Importance.max,
       priority: Priority.high,
       playSound: true,
-      sound: RawResourceAndroidNotificationSound('alarm_sound'),
+      sound: const RawResourceAndroidNotificationSound('alarm_sound'),
       enableVibration: true,
+      vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
       enableLights: true,
-      color: Color(0xFF9C27B0), // สีม่วงสำหรับยา
+      ledColor: Color(0xFF9C27B0), // สีม่วงสำหรับยา
+      ledOnMs: 1000,
+      ledOffMs: 1000,
       icon: 'notification_icon',
+      largeIcon: DrawableResourceAndroidBitmap('notification_icon'),
+      category: AndroidNotificationCategory.alarm,
+      visibility: NotificationVisibility.public,
+      styleInformation: BigTextStyleInformation(
+        'กรุณากดเพื่อปิดการแจ้งเตือน',
+        htmlFormatBigText: false,
+        contentTitle: '💊 แจ้งเตือนยา',
+        htmlFormatContentTitle: false,
+      ),
       actions: [
         AndroidNotificationAction(
           'eat_now',
@@ -368,19 +418,31 @@ NotificationDetails _createAlarmNotificationDetails() {
   }
 
   // สร้างฟังก์ชันแยกสำหรับแจ้งเตือนอาหาร
-  AndroidNotificationDetails _createMealNotificationDetails() {
-    return const AndroidNotificationDetails(
+  AndroidNotificationDetails createMealNotificationDetails() {
+    return AndroidNotificationDetails(
       'meal_channel',
       'Meal Notifications',
       channelDescription: 'แจ้งเตือนสำหรับอาหาร',
       importance: Importance.max,
       priority: Priority.high,
       playSound: true,
-      sound: RawResourceAndroidNotificationSound('alarm_sound'),
+      sound: const RawResourceAndroidNotificationSound('alarm_sound'),
       enableVibration: true,
+      vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
       enableLights: true,
-      color: Color(0xFF4CAF50), // สีเขียวสำหรับอาหาร
+      ledColor: Color(0xFF4CAF50), // สีเขียวสำหรับอาหาร
+      ledOnMs: 1000,
+      ledOffMs: 1000,
       icon: 'notification_icon',
+      largeIcon: DrawableResourceAndroidBitmap('notification_icon'),
+      category: AndroidNotificationCategory.alarm,
+      visibility: NotificationVisibility.public,
+      styleInformation: BigTextStyleInformation(
+        'กรุณากดเพื่อปิดการแจ้งเตือน',
+        htmlFormatBigText: false,
+        contentTitle: '🍽️ แจ้งเตือนอาหาร',
+        htmlFormatContentTitle: false,
+      ),
       actions: [
         AndroidNotificationAction(
           'eat_now',
@@ -445,8 +507,8 @@ NotificationDetails _createAlarmNotificationDetails() {
 
       // เลือก notification details ตามประเภท
       final notificationDetails = isMedication 
-        ? NotificationDetails(android: _createMedicationNotificationDetails())
-        : NotificationDetails(android: _createMealNotificationDetails());
+        ? NotificationDetails(android: createMedicationNotificationDetails())
+        : NotificationDetails(android: createMealNotificationDetails());
 
       await flutterLocalNotificationsPlugin.zonedSchedule(
         id + 1000,
@@ -734,8 +796,8 @@ Future<void> cancelRepeatingMealNotification(int mealId) async {
     try {
       // เลือก notification details ตามประเภท
       final notificationDetails = isMedication 
-        ? _createMedicationNotificationDetails()
-        : _createMealNotificationDetails();
+        ? createMedicationNotificationDetails()
+        : createMealNotificationDetails();
       
       await flutterLocalNotificationsPlugin.periodicallyShow(
         id,
@@ -778,6 +840,69 @@ Future<void> _startBurstNotification(int id, String title, String body, String p
       debugPrint('✅ Test alarm sent');
     } catch (e) {
       debugPrint('❌ Error sending test alarm: $e');
+    }
+  }
+
+  // เพิ่มฟังก์ชันทดสอบเสียงแจ้งเตือนเฉพาะ
+  Future<void> testNotificationSound() async {
+    try {
+      // ทดสอบเสียงแจ้งเตือนอาหารด้วยการตั้งค่าเสียงแบบใหม่
+      final mealDetails = AndroidNotificationDetails(
+        'meal_channel',
+        'Meal Notifications',
+        channelDescription: 'แจ้งเตือนสำหรับอาหาร',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: true,
+        sound: const RawResourceAndroidNotificationSound('alarm_sound'),
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
+        enableLights: true,
+        ledColor: Color(0xFF4CAF50),
+        ledOnMs: 1000,
+        ledOffMs: 1000,
+        icon: 'notification_icon',
+        largeIcon: DrawableResourceAndroidBitmap('notification_icon'),
+      );
+
+      await flutterLocalNotificationsPlugin.show(
+        9998,
+        '🔊 ทดสอบเสียงแจ้งเตือนอาหาร',
+        'คุณควรได้ยินเสียง alarm_sound.mp3',
+        NotificationDetails(android: mealDetails),
+      );
+      debugPrint('✅ Meal notification sound test sent');
+      
+      // รอ 3 วินาทีแล้วทดสอบเสียงแจ้งเตือนยา
+      await Future.delayed(Duration(seconds: 3));
+      
+      final medicationDetails = AndroidNotificationDetails(
+        'medication_channel',
+        'Medication Notifications',
+        channelDescription: 'แจ้งเตือนสำหรับยา',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: true,
+        sound: const RawResourceAndroidNotificationSound('alarm_sound'),
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
+        enableLights: true,
+        ledColor: Color(0xFF9C27B0),
+        ledOnMs: 1000,
+        ledOffMs: 1000,
+        icon: 'notification_icon',
+        largeIcon: DrawableResourceAndroidBitmap('notification_icon'),
+      );
+
+      await flutterLocalNotificationsPlugin.show(
+        9999,
+        '🔊 ทดสอบเสียงแจ้งเตือนยา',
+        'คุณควรได้ยินเสียง alarm_sound.mp3',
+        NotificationDetails(android: medicationDetails),
+      );
+      debugPrint('✅ Medication notification sound test sent');
+    } catch (e) {
+      debugPrint('❌ Error testing notification sound: $e');
     }
   }
 

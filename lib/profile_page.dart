@@ -337,6 +337,12 @@ Widget _buildInfoRow({
     final lunchTime = userData?['lunchTime'] ?? 'ยังไม่มีข้อมูล';
     final dinnerTime = userData?['dinnerTime'] ?? 'ยังไม่มีข้อมูล';
     final medicalCondition = userData?['medicalCondition'] ?? 'ยังไม่มีข้อมูล';
+    final double? weight = (userData?['weight'] is num)
+        ? (userData?['weight'] as num).toDouble()
+        : null;
+    final double? height = (userData?['height'] is num)
+        ? (userData?['height'] as num).toDouble()
+        : null;
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -437,6 +443,22 @@ Widget _buildInfoRow({
                         value: medicalCondition,
                         icon: Icons.medical_services,
                         iconColor: Colors.red.shade400,
+                      ),
+
+                      // น้ำหนัก
+                      _buildInfoRow(
+                        label: "น้ำหนัก",
+                        value: weight != null ? "${weight.toStringAsFixed(weight % 1 == 0 ? 0 : 1)} กก." : 'ยังไม่มีข้อมูล',
+                        icon: Icons.monitor_weight,
+                        iconColor: Colors.blueGrey.shade600,
+                      ),
+
+                      // ส่วนสูง
+                      _buildInfoRow(
+                        label: "ส่วนสูง",
+                        value: height != null ? "${height.toStringAsFixed(height % 1 == 0 ? 0 : 1)} ซม." : 'ยังไม่มีข้อมูล',
+                        icon: Icons.height,
+                        iconColor: Colors.blueGrey.shade600,
                       ),
 
                       // เพิ่มข้อมูลเวลาทานยา
@@ -579,6 +601,8 @@ _buildInfoRow(
                                         : medicalCondition,
                                 medicationData: userData?[
                                     'medicationData'], // เปลี่ยนจาก medicationTime เป็น medicationData
+                                weight: weight,
+                                height: height,
                                 onMedicalConditionUpdated: (newCondition) {
                                   setState(() {
                                     _loadUserData();

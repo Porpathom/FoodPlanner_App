@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'login_page.dart';
 import 'register_page.dart';
+// import 'notification_test_page.dart';
 
 class HomePage extends StatelessWidget {
   @override
@@ -98,6 +99,7 @@ class HomePage extends StatelessWidget {
                       style: TextStyle(fontSize: 18),
                     ),
                   ),
+                  SizedBox(height: 16),
                   SizedBox(height: 50),
                 ],
               ),
