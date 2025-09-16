@@ -540,6 +540,53 @@ const heartDiseaseMenus = {
   ]
 };
 
+// สร้างข้อมูลโภชนาการอัตโนมัติ (กรณีเมนูยังไม่มีระบุไว้)
+function generateNutritionalInfo(menu, mealType) {
+  const name = (menu && menu.name) ? menu.name : "";
+  const text = [
+    name,
+    ...(Array.isArray(menu?.ingredients) ? menu.ingredients : [])
+  ].join(" ");
+
+  // ค่าเริ่มต้นตามมื้ออาหาร
+  let calories = mealType === "breakfast" ? 240 : mealType === "lunch" ? 300 : 220;
+  let protein = mealType === "breakfast" ? 12 : mealType === "lunch" ? 22 : 18;
+  let fat = mealType === "breakfast" ? 6 : mealType === "lunch" ? 7 : 5;
+  let carbs = mealType === "breakfast" ? 30 : mealType === "lunch" ? 38 : 22;
+  let fiber = mealType === "breakfast" ? 3 : mealType === "lunch" ? 5 : 3;
+
+  const set = (c, p, f, ch, fi) => { calories = c; protein = p; fat = f; carbs = ch; fiber = fi; };
+
+  // ปรับตามประเภทเมนูอย่างคร่าว ๆ
+  if (text.includes("โจ๊ก") || text.includes("ข้าวต้ม") || text.includes("ซุป")) {
+    set(mealType === "breakfast" ? 220 : 230, 18, 3, 28, 2);
+  } else if (text.includes("สลัด")) {
+    set(230, name.includes("ไก่") || name.includes("ทูน่า") ? 24 : 14, 6, 14, 5);
+  } else if (text.includes("ต้มยำ") || text.includes("แกงส้ม") || text.includes("แกงจืด")) {
+    set(180, 22, 3, 20, 4);
+  } else if (text.includes("ปลานึ่ง") || text.includes("อบ") || (text.includes("ปลา") && !text.includes("ทอด"))) {
+    set(220, 26, 5, 6, 1);
+  } else if (text.includes("ลาบ")) {
+    set(220, 24, 7, 8, 2);
+  } else if (text.includes("ก๋วยเตี๋ยวลุยสวน")) {
+    set(210, 24, 3, 20, 4);
+  } else if (text.includes("ผัดไทย") || text.includes("ข้าวผัด") || text.includes("ผัด")) {
+    set(300, 22, 7, 40, 4);
+  } else if (text.includes("แพนเค้ก") || text.includes("ขนมปัง")) {
+    set(260, 10, 7, 42, 4);
+  } else if (text.includes("สมูทตี้") || text.includes("น้ำเต้าหู้")) {
+    set(190, 9, 6, 24, 3);
+  }
+
+  return {
+    calories: `พลังงาน: ${calories} กิโลแคลอรี`,
+    protein: `โปรตีน: ${protein} กรัม`,
+    fat: `ไขมันทั้งหมด: ${fat} กรัม`,
+    carbs: `คาร์โบไฮเดรต: ${carbs} กรัม`,
+    fiber: `ใยอาหาร: ${fiber} กรัม`
+  };
+}
+
 // เพิ่มฟังก์ชันสำหรับเพิ่มเมนูอาหารสำหรับผู้ป่วยโรคหัวใจ
 async function addHeartDiseaseMenus() {
   const batch = db.batch();
@@ -557,6 +604,7 @@ async function addHeartDiseaseMenus() {
         highBloodPressure: false,
         heartDisease: true
       },
+      nutritionalInfo: menu.nutritionalInfo ? menu.nutritionalInfo : generateNutritionalInfo(menu, "breakfast"),
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
@@ -575,6 +623,7 @@ async function addHeartDiseaseMenus() {
         highBloodPressure: false,
         heartDisease: true
       },
+      nutritionalInfo: menu.nutritionalInfo ? menu.nutritionalInfo : generateNutritionalInfo(menu, "lunch"),
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
@@ -593,6 +642,7 @@ async function addHeartDiseaseMenus() {
         highBloodPressure: false,
         heartDisease: true
       },
+      nutritionalInfo: menu.nutritionalInfo ? menu.nutritionalInfo : generateNutritionalInfo(menu, "dinner"),
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });

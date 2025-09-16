@@ -14,7 +14,6 @@ class EditUserDataPage extends StatefulWidget {
   final Map<String, dynamic>? medicationData; // Changed to accept medication data map
   final Function(String)? onMedicalConditionUpdated;
   final double? weight; // กิโลกรัม
-  final double? height; // เซนติเมตร
 
   EditUserDataPage({
     required this.breakfastTime,
@@ -24,7 +23,6 @@ class EditUserDataPage extends StatefulWidget {
     this.medicationData,
     this.onMedicalConditionUpdated,
     this.weight,
-    this.height,
   });
 
   @override
@@ -38,7 +36,6 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
   String selectedMedicalCondition = 'โรคเบาหวาน';
   bool hasMedication = false;
   late final TextEditingController weightController;
-  late final TextEditingController heightController;
   
   // New medication time fields
   bool beforeMeal = false;
@@ -103,8 +100,6 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
 
     weightController = TextEditingController(
         text: widget.weight != null ? widget.weight!.toString() : '');
-    heightController = TextEditingController(
-        text: widget.height != null ? widget.height!.toString() : '');
 
     _checkCurrentMealPlan();
     _initializeNotificationService();
@@ -166,7 +161,7 @@ class _EditUserDataPageState extends State<EditUserDataPage> {
   @override
   void dispose() {
     weightController.dispose();
-    heightController.dispose();
+
     super.dispose();
   }
 
@@ -304,8 +299,6 @@ Future<void> _saveUserData() async {
 
       double? parsedWeight =
           weightController.text.trim().isEmpty ? null : double.tryParse(weightController.text.trim());
-      double? parsedHeight =
-          heightController.text.trim().isEmpty ? null : double.tryParse(heightController.text.trim());
 
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'breakfastTime': breakfastTime,
@@ -315,7 +308,6 @@ Future<void> _saveUserData() async {
         'medicalCondition': selectedMedicalCondition,
         'medicationData': medicationData,
         'weight': parsedWeight,
-        'height': parsedHeight,
       }, SetOptions(merge: true));
 
       try {
@@ -684,7 +676,7 @@ Future<void> _saveUserData() async {
                       
                       SizedBox(height: 20),
                       
-                      // น้ำหนักและส่วนสูง
+                      // น้ำหนัก
                       Text(
                         "น้ำหนัก (กิโลกรัม)",
                         style: TextStyle(
@@ -700,29 +692,6 @@ Future<void> _saveUserData() async {
                           hintText: "เช่น 68.5",
                           prefixIcon: Icon(Icons.monitor_weight, color: Colors.grey.shade700),
                           suffixText: "กก.",
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey.shade50,
-                        ),
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        "ส่วนสูง (เซนติเมตร)",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      SizedBox(height: 8),
-                      TextField(
-                        controller: heightController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          hintText: "เช่น 172",
-                          prefixIcon: Icon(Icons.height, color: Colors.grey.shade700),
-                          suffixText: "ซม.",
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),

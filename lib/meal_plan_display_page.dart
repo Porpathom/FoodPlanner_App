@@ -517,6 +517,34 @@ class _MealPlanDisplayPageState extends State<MealPlanDisplayPage> {
   Future<void> _createMealPlanInFirestore(
       String userId, String healthCondition) async {
     try {
+      // ดึงน้ำหนักผู้ใช้จากเอกสาร users/{uid}
+      DocumentSnapshot userDoc =
+          await _firestore.collection('users').doc(userId).get();
+      double? userWeight;
+      if (userDoc.exists) {
+        final Map<String, dynamic> userData =
+            userDoc.data() as Map<String, dynamic>;
+        if (userData['weight'] is num) {
+          userWeight = (userData['weight'] as num).toDouble();
+        }
+      }
+
+      // คำนวณเป้าหมายแคลอรี่ หากมีน้ำหนัก
+      // เกณฑ์แบ่งน้ำหนัก 50 กก.:
+      // - ถ้าน้ำหนัก < 50 ใช้ 25 kcal/กก.
+      // - ถ้าน้ำหนัก >= 50 ใช้ 30 kcal/กก.
+      // สัดส่วนต่อมื้อ: เช้า 25%, เที่ยง 35%, เย็น 40%
+      double? dailyCalories = userWeight != null
+          ? (userWeight < 50 ? userWeight * 25.0 : userWeight * 30.0)
+          : null;
+      Map<String, double>? perMealTargets = dailyCalories != null
+          ? {
+              'breakfast': dailyCalories * 0.25,
+              'lunch': dailyCalories * 0.35,
+              'dinner': dailyCalories * 0.40,
+            }
+          : null;
+
       // แปลงค่า healthCondition เป็นคีย์ที่ใช้จริงในฐานข้อมูล
       String conditionKey = _getConditionKey(healthCondition);
       print(
@@ -589,10 +617,26 @@ class _MealPlanDisplayPageState extends State<MealPlanDisplayPage> {
           .map((doc) => {'id': doc.id, ...doc.data() as Map<String, dynamic>})
           .toList();
 
-      // สลับลำดับเมนูแบบสุ่ม
-      breakfastMenus.shuffle();
-      lunchMenus.shuffle();
-      dinnerMenus.shuffle();
+      // หากมีเป้าหมายแคลอรี่ เลือกเมนูให้ใกล้เป้าหมายต่อมื้อ
+      if (perMealTargets != null) {
+        breakfastMenus = _pickMenusByCalorieTarget(
+          breakfastMenus,
+          perMealTargets['breakfast']!,
+        );
+        lunchMenus = _pickMenusByCalorieTarget(
+          lunchMenus,
+          perMealTargets['lunch']!,
+        );
+        dinnerMenus = _pickMenusByCalorieTarget(
+          dinnerMenus,
+          perMealTargets['dinner']!,
+        );
+      } else {
+        // fallback กรณีไม่มีน้ำหนัก: สุ่มเมนู
+        breakfastMenus.shuffle();
+        lunchMenus.shuffle();
+        dinnerMenus.shuffle();
+      }
 
       // สร้างวันที่เริ่มต้นและสิ้นสุด
       DateTime newStartDate = DateTime.now();
@@ -657,7 +701,10 @@ class _MealPlanDisplayPageState extends State<MealPlanDisplayPage> {
         'description':
             'แผนอาหารสำหรับผู้ที่${healthCondition == 'healthy' ? 'ไม่มีโรคประจำตัว' : 'มีสภาวะ $healthCondition'}',
         'dailyPlans': newDailyPlans,
-        'isActive': true
+        'isActive': true,
+        if (userWeight != null) 'weightAtCreation': userWeight,
+        if (dailyCalories != null) 'dailyCaloriesTarget': dailyCalories,
+        if (perMealTargets != null) 'perMealTargets': perMealTargets,
       };
 
       // บันทึกแผนอาหารใน Firestore
@@ -668,6 +715,56 @@ class _MealPlanDisplayPageState extends State<MealPlanDisplayPage> {
       print("เกิดข้อผิดพลาดในการสร้างแผนอาหาร: $e");
       rethrow;
     }
+  }
+
+  // เลือกเมนูให้มีแคลอรี่ใกล้เป้าหมาย และให้ได้อย่างน้อย 7 รายการ
+  // หากข้อมูลแคลอรี่ไม่พอ จะ fallback เป็นการสุ่ม
+  List<Map<String, dynamic>> _pickMenusByCalorieTarget(
+    List<Map<String, dynamic>> menus,
+    double targetCalories,
+  ) {
+    if (menus.isEmpty) return menus;
+
+    // แยกรายการที่มี calories ออกมา
+    List<Map<String, dynamic>> withCal = [];
+    List<Map<String, dynamic>> noCal = [];
+    for (final m in menus) {
+      final nutri = m['nutritionalInfo'];
+      if (nutri is Map && nutri['calories'] is num) {
+        withCal.add(m);
+      } else {
+        noCal.add(m);
+      }
+    }
+
+    if (withCal.isEmpty) {
+      // ไม่มีข้อมูลแคลอรี่เลย สุ่มกลับ
+      menus.shuffle();
+      return menus;
+    }
+
+    // จัดอันดับตามความใกล้กับเป้าหมาย
+    withCal.sort((a, b) {
+      final ca = (a['nutritionalInfo']['calories'] as num).toDouble();
+      final cb = (b['nutritionalInfo']['calories'] as num).toDouble();
+      final da = (ca - targetCalories).abs();
+      final db = (cb - targetCalories).abs();
+      return da.compareTo(db);
+    });
+
+    // เลือกอย่างน้อย 7 รายการ ถ้าไม่พอ เติมจาก noCal หรือส่วนท้าย
+    List<Map<String, dynamic>> picked = withCal.take(7).toList();
+    if (picked.length < 7) {
+      // เติมจากรายการไม่มีแคลอรี่ก่อน
+      noCal.shuffle();
+      picked.addAll(noCal.take(7 - picked.length));
+    }
+    if (picked.length < 7 && withCal.length > picked.length) {
+      picked.addAll(withCal.skip(picked.length).take(7 - picked.length));
+    }
+
+    // เพื่อความหลากหลาย สลับเล็กน้อยแต่คงใกล้เป้าหมาย
+    return picked;
   }
 
   // อัปเดตสถานะการทานอาหาร

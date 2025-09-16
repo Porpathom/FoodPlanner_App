@@ -151,9 +151,7 @@ Future<void> _navigateToEditPage() async {
         weight: (userData?['weight'] is num)
             ? (userData?['weight'] as num).toDouble()
             : null,
-        height: (userData?['height'] is num)
-            ? (userData?['height'] as num).toDouble()
-            : null,
+
       ),
     ),
   );
@@ -325,8 +323,8 @@ Future<void> _navigateToEditPage() async {
     final double? weight = (userData!['weight'] is num)
         ? (userData!['weight'] as num).toDouble()
         : null;
-    final double? height = (userData!['height'] is num)
-        ? (userData!['height'] as num).toDouble()
+    final int? age = (userData!['age'] is num)
+        ? (userData!['age'] as num).toInt()
         : null;
     String medicationText = 'ไม่มีการทานยา';
     if (userData!['medicationData'] is Map<String, dynamic>) {
@@ -529,28 +527,7 @@ Future<void> _navigateToEditPage() async {
             ],
           ),
         ),
-        // ส่วนสูง
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: const BoxDecoration(
-            border: Border(
-              bottom: BorderSide(color: Color.fromARGB(255, 213, 210, 210)),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.height, color: Colors.blueGrey, size: 22),
-              const SizedBox(width: 8),
-              Text(
-                height != null
-                    ? '${height % 1 == 0 ? height.toStringAsFixed(0) : height.toStringAsFixed(1)} ซม.'
-                    : 'ยังไม่มีข้อมูล',
-                style: const TextStyle(fontSize: 16),
-              ),
-            ],
-          ),
-        ),
+
         // เพิ่มข้อมูลเวลาทานยา
         Container(
           width: double.infinity,

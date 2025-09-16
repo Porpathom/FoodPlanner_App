@@ -340,9 +340,7 @@ Widget _buildInfoRow({
     final double? weight = (userData?['weight'] is num)
         ? (userData?['weight'] as num).toDouble()
         : null;
-    final double? height = (userData?['height'] is num)
-        ? (userData?['height'] as num).toDouble()
-        : null;
+
 
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
@@ -453,13 +451,7 @@ Widget _buildInfoRow({
                         iconColor: Colors.blueGrey.shade600,
                       ),
 
-                      // ส่วนสูง
-                      _buildInfoRow(
-                        label: "ส่วนสูง",
-                        value: height != null ? "${height.toStringAsFixed(height % 1 == 0 ? 0 : 1)} ซม." : 'ยังไม่มีข้อมูล',
-                        icon: Icons.height,
-                        iconColor: Colors.blueGrey.shade600,
-                      ),
+
 
                       // เพิ่มข้อมูลเวลาทานยา
 // ในส่วนของข้อมูลสุขภาพ
@@ -602,7 +594,7 @@ _buildInfoRow(
                                 medicationData: userData?[
                                     'medicationData'], // เปลี่ยนจาก medicationTime เป็น medicationData
                                 weight: weight,
-                                height: height,
+
                                 onMedicalConditionUpdated: (newCondition) {
                                   setState(() {
                                     _loadUserData();
